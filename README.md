@@ -1,8 +1,8 @@
 # Voter
 
-更好看、功能更全面的快速投票器（多選一鍵投票、多票種組合投票）。介面採用新版樣式。 
-
 專案頁面：[Voter](https://zh.wikipedia.org/wiki/User:SuperGrey/gadgets/voter)
+
+更好看、功能更全面的快速投票器（多選一鍵投票、多票種組合投票）。介面採用新版樣式。 
 
 ## 使用方式
 将如下程式碼复制至 [Special:MyPage/common.js](https://zh.wikipedia.org/wiki/Special:MyPage/common.js) 頁面：
