@@ -32,7 +32,7 @@ export function addVoteButtons() {
 
 		if (anchor) {
 			let sectionID = getSectionID(index + 1);
-			const $voteLink = $('<a>').text(state.convByVar({ hant: '投票', hans: '投票' })).css('cursor', 'pointer');
+			const $voteLink = $('<a>').text(state.convByVar({ hant: '投票', hans: '投票' })).css({'cursor': 'pointer', 'margin-left': '0.25em'});
 			$voteLink.on('click', (e) => {
 				e.preventDefault();
 				openVoteDialog(sectionID);
