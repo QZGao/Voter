@@ -15,4 +15,4 @@ importScript('User:SuperGrey/gadgets/voter/main.js');  // Backlink: [[User:Super
 - 上游：[Vote-Template](https://zh.wikipedia.org/wiki/User:小躍/Vote-Template)（[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.zh)）
   - 作者：[小躍](https://zh.wikipedia.org/wiki/User:小躍)
 
-- 本工具採用 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.zh) + [MIT License](https://opensource.org/licenses/MIT) 授權。
+- 本工具採用 [CC BY-SA 4.0](/LICENSE-CC-BY-SA) + [MIT License](/LICENSE) 授權。
