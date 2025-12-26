@@ -2,8 +2,6 @@ import { addVoteButtons } from "./dom";
 import state from "./state";
 import styles from './styles.css';
 
-declare var mw: any;
-
 /**
  * 將 CSS 樣式注入到頁面中。
  * @param css {string} 要注入的 CSS 樣式
@@ -14,11 +12,14 @@ function injectStyles(css: string): void {
 		const styleEl = document.createElement('style');
 		styleEl.appendChild(document.createTextNode(css));
 		document.head.appendChild(styleEl);
-	} catch (e) {
+	} catch {
 		// Fallback for older environments
 		const div = document.createElement('div');
 		div.innerHTML = `<style>${css}</style>`;
-		document.head.appendChild(div.firstChild as any);
+		const styleEl = div.firstElementChild as HTMLElement | null;
+		if (styleEl) {
+			document.head.appendChild(styleEl);
+		}
 	}
 }
 
@@ -27,7 +28,7 @@ function injectStyles(css: string): void {
  * @returns {boolean} 是否為有效的投票頁面
  */
 function validatePage(pageName: string): boolean {
-	let validPages = [
+	const validPages = [
 		{
 			name: 'Wikipedia:新条目推荐/候选',
 			templates: [
@@ -57,7 +58,7 @@ function validatePage(pageName: string): boolean {
 		},
 	];
 
-	for (let page of validPages) {
+	for (const page of validPages) {
 		if (pageName === page.name || new RegExp(`^${page.name}/`, 'i').test(pageName)) {
 			state.validVoteTemplates = page.templates;
 			state.invalidVoteTemplates = [
@@ -74,7 +75,7 @@ function validatePage(pageName: string): boolean {
 /**
  * 小工具入口。
  */
-function init(): void {
+async function init(): Promise<void> {
 	// Inject bundled CSS into the page.
 	if (typeof document !== 'undefined') {
 		injectStyles(styles);
@@ -86,12 +87,11 @@ function init(): void {
 		return;
 	}
 
-	state.initHanAssist().then(() => {
-		console.log(`[Voter] 已載入，當前頁面為 ${state.pageName}。`);
-		mw.hook('wikipage.content').add(function () {
-			setTimeout(() => addVoteButtons(), 200);  // 等待編輯按鈕載入
-		});
+	await state.initHanAssist();
+	console.log(`[Voter] 已載入，當前頁面為 ${state.pageName}。`);
+	mw.hook('wikipage.content').add(() => {
+		setTimeout(() => addVoteButtons(), 200);  // 等待編輯按鈕載入
 	});
 }
 
-init();
+void init();

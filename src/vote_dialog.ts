@@ -7,16 +7,82 @@ import {
 	registerCodexComponents,
 	getMountedApp
 } from "./dialog";
+import type { VueModule, CodexModule } from "./dialog";
 import { vote } from "./dom";
 
-declare var mw: any;
+type EntryOption = { value: number; label: string };
+type TemplateOption = { value: string; label: string };
+
+interface DialogAction {
+	label: string;
+	actionType?: 'primary' | 'progressive';
+	disabled?: boolean;
+}
+
+interface VoteDialogI18n {
+	dialogTitle: string;
+	submitting: string;
+	submit: string;
+	cancel: string;
+	next: string;
+	previous: string;
+	selectEntries: string;
+	selectEntriesPlaceholder: string;
+	selectTemplates: string;
+	selectTemplatesPlaceholder: string;
+	voteReason: string;
+	voteReasonPlaceholder: string;
+	useBulleted: string;
+	previewHeading: string;
+	previewInfo: string;
+	votingFor: string;
+	voteContent: string;
+	noEntriesSelected: string;
+	noTemplatesSelected: string;
+}
+
+interface VoteDialogData {
+	open: boolean;
+	isSubmitting: boolean;
+	currentStep: number;
+	totalSteps: number;
+	selectedEntries: number[];
+	entryInfoHtml: string;
+	isLoadingInfo: boolean;
+	selectedTemplates: string[];
+	voteMessage: string;
+	useBulleted: boolean;
+}
+
+interface VoteDialogComputed {
+	entryOptions: EntryOption[];
+	validTemplateOptions: TemplateOption[];
+	invalidTemplateOptions: TemplateOption[];
+	allTemplateOptions: TemplateOption[];
+	selectedEntryNames: string[];
+	previewVoteText: string;
+	primaryAction: DialogAction;
+	defaultAction: DialogAction;
+}
+
+type VoteDialogInstance = VoteDialogData & VoteDialogComputed & {
+	$options: { i18n: VoteDialogI18n };
+	loadEntryInfo: () => Promise<void>;
+	validateStep0: () => boolean;
+	validateStep1: () => boolean;
+	onPrimaryAction: () => void;
+	onDefaultAction: () => void;
+	onUpdateOpen: (newValue: boolean) => void;
+	closeDialog: () => void;
+	submitVote: () => Promise<void>;
+};
 
 /**
  * 創建投票對話框。
  * @param sectionID 章節編號
  */
 function createVoteDialog(sectionID: number): void {
-	loadCodexAndVue().then(({ Vue, Codex }: any) => {
+	loadCodexAndVue().then(({ Vue, Codex }: { Vue: VueModule; Codex: CodexModule }) => {
 		const app = Vue.createMwApp({
 			i18n: {
 				dialogTitle: state.convByVar({
@@ -69,32 +135,32 @@ function createVoteDialog(sectionID: number): void {
 				};
 			},
 			computed: {
-				entryOptions() {
+				entryOptions(this: VoteDialogInstance): EntryOption[] {
 					return state.sectionTitles.map(item => ({ value: item.data, label: item.label }));
 				},
-				validTemplateOptions() {
+				validTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
 					return (state.validVoteTemplates || []).map(item => ({ value: item.data, label: item.label }));
 				},
-				invalidTemplateOptions() {
+				invalidTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
 					return (state.invalidVoteTemplates || []).map(item => ({ value: item.data, label: item.label }));
 				},
-				allTemplateOptions() {
+				allTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
 					return [...this.validTemplateOptions, ...this.invalidTemplateOptions];
 				},
-				selectedEntryNames(): string[] {
+				selectedEntryNames(this: VoteDialogInstance): string[] {
 					return this.selectedEntries.map((id: number) => {
 						const entry = state.sectionTitles.find(x => x.data === id);
 						return entry ? entry.label : `Section ${id}`;
 					});
 				},
-				previewVoteText(): string {
+				previewVoteText(this: VoteDialogInstance): string {
 					let VTReason = this.selectedTemplates.map((str: string) => `{{${str}}}`).join('；');
 					const message = (this.voteMessage || '').trim();
 					VTReason += message ? '：' + message : '。';
 					VTReason += '--~~' + '~~';
 					return VTReason;
 				},
-				primaryAction() {
+				primaryAction(this: VoteDialogInstance): DialogAction {
 					if (this.currentStep < this.totalSteps - 1) {
 						return { label: this.$options.i18n.next, actionType: 'primary', disabled: false };
 					}
@@ -104,7 +170,7 @@ function createVoteDialog(sectionID: number): void {
 						disabled: this.isSubmitting
 					};
 				},
-				defaultAction() {
+				defaultAction(this: VoteDialogInstance): DialogAction {
 					if (this.currentStep > 0) {
 						return { label: this.$options.i18n.previous };
 					}
@@ -113,34 +179,37 @@ function createVoteDialog(sectionID: number): void {
 			},
 			watch: {
 				selectedEntries: {
-					handler: 'loadEntryInfo',
+					handler(this: VoteDialogInstance) {
+						void this.loadEntryInfo();
+					},
 					immediate: true,
 				},
 			},
 			methods: {
-				getStepClass(step: number) {
+				getStepClass(this: VoteDialogInstance, step: number) {
 					return { 'voter-multistep-dialog__stepper__step--active': step <= this.currentStep };
 				},
 
-				async loadEntryInfo() {
+				async loadEntryInfo(this: VoteDialogInstance) {
 					if (!this.selectedEntries.length) {
 						this.entryInfoHtml = '';
 						return;
 					}
 
 					this.isLoadingInfo = true;
-					const infoPromises = this.selectedEntries.map(async (id: number) => {
+					const infoPromises: Array<Promise<string>> = this.selectedEntries.map(async (id: number) => {
 						const entryName = state.sectionTitles.find(x => x.data === id)?.label || '';
 						if (!entryName) return '';
-						return await getXToolsInfo(entryName);
+						return getXToolsInfo(entryName);
 					});
 
 					const results = await Promise.all(infoPromises);
-					this.entryInfoHtml = results.filter(Boolean).map(html => `<div style="margin-top:0.5em">${html}</div>`).join('');
+					const filteredResults = results.filter((html): html is string => Boolean(html));
+					this.entryInfoHtml = filteredResults.map(html => `<div style="margin-top:0.5em">${html}</div>`).join('');
 					this.isLoadingInfo = false;
 				},
 
-				validateStep0(): boolean {
+				validateStep0(this: VoteDialogInstance): boolean {
 					if (!this.selectedEntries.length) {
 						mw.notify(this.$options.i18n.noEntriesSelected, { type: 'error', title: '[Voter]' });
 						return false;
@@ -148,7 +217,7 @@ function createVoteDialog(sectionID: number): void {
 					return true;
 				},
 
-				validateStep1(): boolean {
+				validateStep1(this: VoteDialogInstance): boolean {
 					if (!this.selectedTemplates.length) {
 						mw.notify(this.$options.i18n.noTemplatesSelected, { type: 'error', title: '[Voter]' });
 						return false;
@@ -156,7 +225,7 @@ function createVoteDialog(sectionID: number): void {
 					return true;
 				},
 
-				onPrimaryAction() {
+				onPrimaryAction(this: VoteDialogInstance) {
 					// Validate current step before advancing
 					if (this.currentStep === 0 && !this.validateStep0()) {
 						return;
@@ -172,10 +241,10 @@ function createVoteDialog(sectionID: number): void {
 					}
 
 					// Final step: submit vote
-					this.submitVote();
+					void this.submitVote();
 				},
 
-				onDefaultAction() {
+				onDefaultAction(this: VoteDialogInstance) {
 					if (this.currentStep > 0) {
 						this.currentStep--;
 						return;
@@ -183,20 +252,20 @@ function createVoteDialog(sectionID: number): void {
 					this.closeDialog();
 				},
 
-				onUpdateOpen(newValue: boolean) {
+				onUpdateOpen(this: VoteDialogInstance, newValue: boolean) {
 					if (!newValue) {
 						this.closeDialog();
 					}
 				},
 
-				closeDialog() {
+				closeDialog(this: VoteDialogInstance) {
 					this.open = false;
 					setTimeout(() => {
 						removeDialogMount();
 					}, 300);
 				},
 
-				async submitVote() {
+				async submitVote(this: VoteDialogInstance) {
 					this.isSubmitting = true;
 
 					try {
@@ -221,7 +290,7 @@ function createVoteDialog(sectionID: number): void {
 							removeDialogMount();
 						}, 300);
 
-					} catch (error) {
+					} catch (error: unknown) {
 						console.error('[Voter] submitVote failed:', error);
 						const msg = state.convByVar({ hant: '投票提交失敗，請稍後再試。', hans: '投票提交失败，请稍后再试。' });
 						mw.notify(msg, { type: 'error', title: '[Voter]' });
@@ -336,7 +405,7 @@ function createVoteDialog(sectionID: number): void {
 
 		registerCodexComponents(app, Codex);
 		mountApp(app);
-	}).catch((error) => {
+	}).catch((error: unknown) => {
 		console.error('[Voter] 無法加載 Codex:', error);
 		mw.notify(state.convByVar({ hant: '無法加載對話框組件。', hans: '无法加载对话框组件。' }), {
 			type: 'error',
@@ -350,9 +419,16 @@ function createVoteDialog(sectionID: number): void {
  * @param sectionID 章節編號
  */
 export function openVoteDialog(sectionID: number): void {
-	if (getMountedApp && getMountedApp()) removeDialogMount();
+	const mountedApp = getMountedApp();
+	if (mountedApp) removeDialogMount();
 	createVoteDialog(sectionID);
 }
 
 // Expose to global scope for legacy compatibility
-(window as any).openVoteDialog = openVoteDialog;
+declare global {
+	interface Window {
+		openVoteDialog?: (sectionID: number) => void;
+	}
+}
+
+window.openVoteDialog = openVoteDialog;
