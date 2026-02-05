@@ -68,6 +68,18 @@
     gap: 0 8px;
 }
 
+.voter-template-hint {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #54595d;
+}
+
+.voter-template-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* Entry Info */
 .voter-entry-info {
     margin-top: 12px;

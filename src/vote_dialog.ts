@@ -29,7 +29,7 @@ interface VoteDialogI18n {
 	selectEntries: string;
 	selectEntriesPlaceholder: string;
 	selectTemplates: string;
-	selectTemplatesPlaceholder: string;
+	insertTemplateHint: string;
 	voteReason: string;
 	voteReasonPlaceholder: string;
 	useBulleted: string;
@@ -38,7 +38,7 @@ interface VoteDialogI18n {
 	votingFor: string;
 	voteContent: string;
 	noEntriesSelected: string;
-	noTemplatesSelected: string;
+	noVoteContent: string;
 }
 
 interface VoteDialogData {
@@ -49,7 +49,6 @@ interface VoteDialogData {
 	selectedEntries: number[];
 	entryInfoHtml: string;
 	isLoadingInfo: boolean;
-	selectedTemplates: string[];
 	voteMessage: string;
 	useBulleted: boolean;
 }
@@ -70,6 +69,8 @@ type VoteDialogInstance = VoteDialogData & VoteDialogComputed & {
 	loadEntryInfo: () => Promise<void>;
 	validateStep0: () => boolean;
 	validateStep1: () => boolean;
+	getVoteTextarea: () => HTMLTextAreaElement | null;
+	insertTemplate: (template: string) => void;
 	onPrimaryAction: () => void;
 	onDefaultAction: () => void;
 	onUpdateOpen: (newValue: boolean) => void;
@@ -101,9 +102,9 @@ function createVoteDialog(sectionID: number): void {
 
 				// Step 1: Template Selection
 				selectTemplates: state.convByVar({ hant: '投票模板', hans: '投票模板' }),
-				selectTemplatesPlaceholder: state.convByVar({ hant: '選擇投票模板', hans: '选择投票模板' }),
-				voteReason: state.convByVar({ hant: '投票理由（可不填；無須簽名）', hans: '投票理由（可不填；无须签名）' }),
-				voteReasonPlaceholder: state.convByVar({ hant: '輸入投票理由…', hans: '输入投票理由…' }),
+				insertTemplateHint: state.convByVar({ hant: '點擊模板按鈕可插入到下方文字框', hans: '点击模板按钮可插入到下方文本框' }),
+				voteReason: state.convByVar({ hant: '投票內容（無須簽名）', hans: '投票内容（无须签名）' }),
+				voteReasonPlaceholder: state.convByVar({ hant: '輸入投票內容…', hans: '输入投票内容…' }),
 				useBulleted: state.convByVar({ hant: '使用 * 縮排', hans: '使用 * 缩进' }),
 
 				// Step 2: Preview
@@ -114,7 +115,7 @@ function createVoteDialog(sectionID: number): void {
 
 				// Validation
 				noEntriesSelected: state.convByVar({ hant: '請選擇至少一個投票條目。', hans: '请选择至少一个投票条目。' }),
-				noTemplatesSelected: state.convByVar({ hant: '請選擇至少一個投票模板。', hans: '请选择至少一个投票模板。' }),
+				noVoteContent: state.convByVar({ hant: '請輸入投票內容，或先插入模板。', hans: '请输入投票内容，或先插入模板。' }),
 			},
 			data() {
 				return {
@@ -129,8 +130,7 @@ function createVoteDialog(sectionID: number): void {
 					isLoadingInfo: false,
 
 					// Step 1: Template & reason
-					selectedTemplates: state.validVoteTemplates.length > 0 ? [state.validVoteTemplates[0].data] : [],
-					voteMessage: '',
+					voteMessage: state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : '',
 					useBulleted: true,
 				};
 			},
@@ -154,11 +154,8 @@ function createVoteDialog(sectionID: number): void {
 					});
 				},
 				previewVoteText(this: VoteDialogInstance): string {
-					let VTReason = this.selectedTemplates.map((str: string) => `{{${str}}}`).join('；');
 					const message = (this.voteMessage || '').trim();
-					VTReason += message ? '：' + message : '。';
-					VTReason += '--~~' + '~~';
-					return VTReason;
+					return message ? `${message}--~~~~` : '--~~~~';
 				},
 				primaryAction(this: VoteDialogInstance): DialogAction {
 					if (this.currentStep < this.totalSteps - 1) {
@@ -218,11 +215,37 @@ function createVoteDialog(sectionID: number): void {
 				},
 
 				validateStep1(this: VoteDialogInstance): boolean {
-					if (!this.selectedTemplates.length) {
-						mw.notify(this.$options.i18n.noTemplatesSelected, { type: 'error', title: '[Voter]' });
+					if (!(this.voteMessage || '').trim()) {
+						mw.notify(this.$options.i18n.noVoteContent, { type: 'error', title: '[Voter]' });
 						return false;
 					}
 					return true;
+				},
+
+				getVoteTextarea(): HTMLTextAreaElement | null {
+					return document.querySelector('.voter-dialog textarea');
+				},
+
+				insertTemplate(this: VoteDialogInstance, template: string) {
+					const templateText = `{{${template}}}`;
+					const current = this.voteMessage || '';
+					const textArea = this.getVoteTextarea();
+					if (!textArea) {
+						this.voteMessage = `${current}${templateText}`;
+						return;
+					}
+
+					const start = textArea.selectionStart ?? current.length;
+					const end = textArea.selectionEnd ?? start;
+					this.voteMessage = `${current.slice(0, start)}${templateText}${current.slice(end)}`;
+
+					setTimeout(() => {
+						const focusedTextArea = this.getVoteTextarea();
+						if (!focusedTextArea) return;
+						const nextCursor = start + templateText.length;
+						focusedTextArea.focus();
+						focusedTextArea.setSelectionRange(nextCursor, nextCursor);
+					}, 0);
 				},
 
 				onPrimaryAction(this: VoteDialogInstance) {
@@ -271,7 +294,6 @@ function createVoteDialog(sectionID: number): void {
 					try {
 						const hasConflict = await vote(
 							this.selectedEntries,
-							this.selectedTemplates,
 							this.voteMessage,
 							this.useBulleted
 						);
@@ -355,15 +377,15 @@ function createVoteDialog(sectionID: number): void {
                     <!-- Step 1: Template Selection & Reason -->
                     <div v-else-if="currentStep === 1" class="voter-form-section">
                         <label class="voter-form-label">{{ $options.i18n.selectTemplates }}</label>
-                        <div class="voter-checkbox-grid">
-                            <cdx-checkbox
+                        <div class="voter-template-hint">{{ $options.i18n.insertTemplateHint }}</div>
+                        <div class="voter-template-buttons">
+                            <cdx-button
                                 v-for="option in allTemplateOptions"
                                 :key="option.value"
-                                v-model="selectedTemplates"
-                                :input-value="option.value"
+                                @click="insertTemplate(option.value)"
                             >
                                 {{ option.label }}
-                            </cdx-checkbox>
+                            </cdx-button>
                         </div>
 
                         <div class="voter-form-section">

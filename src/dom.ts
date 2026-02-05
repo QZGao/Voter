@@ -123,19 +123,32 @@ export function refreshPage(entryName: string | undefined) {
 
 
 /**
+ * 從投票文本中提取模板名（例如 {{支持}}）。
+ * @param text {string} 投票文本
+ * @returns {string[]} 模板名列表
+ */
+function extractTemplateNames(text: string): string[] {
+	const matches = text.match(/{{\s*([^{}]+?)\s*}}/g) || [];
+	const names = matches
+		.map((raw) => raw.replace(/^{{\s*/, '').replace(/\s*}}$/, '').split('|')[0].trim())
+		.filter(Boolean);
+	return [...new Set(names)];
+}
+
+/**
  * 投票動作的完整實現。
  * @param voteIDs {number[]} 投票ID
- * @param templates {string[]} 投票模板
- * @param message {string} 投票理由
+ * @param voteText {string} 投票內容
  * @param useBulleted {boolean} 是否使用 * 縮進
  * @returns {Promise<boolean>} 是否發生衝突
  */
-export async function vote(voteIDs: number[], templates: string[], message: string, useBulleted: boolean): Promise<boolean> {
+export async function vote(voteIDs: number[], voteText: string, useBulleted: boolean): Promise<boolean> {
 	// event.preventDefault();
-	let VTReason = templates.map(str => `{{${str}}}`).join('；');
-	message = message.trim();
-	VTReason += message ? '：' + message : '。';
-	VTReason += '--~~~~';
+	let finalVoteText = voteText.trim();
+	if (!/--~{3,}/.test(finalVoteText)) {
+		finalVoteText += '--~~~~';
+	}
+	const templates = extractTemplateNames(finalVoteText);
 
 	for (const id of voteIDs) {
 		let votedPageName = state.sectionTitles.find(x => x.data === id)?.label || `section ${id}`;
@@ -150,9 +163,9 @@ export async function vote(voteIDs: number[], templates: string[], message: stri
 			destPage += '/提名区';
 		}
 
-		let text = addIndent(VTReason, indent);
+		let text = addIndent(finalVoteText, indent);
 		let summary = `/* ${votedPageName} */ `;
-		summary += templates.join('、');
+		summary += templates.length ? templates.join('、') : state.convByVar({ hant: '投票', hans: '投票' });
 		summary += ' ([[User:SuperGrey/gadgets/voter|Voter]])';
 
 		if (await voteAPI(state.pageName, destPage, id, text, summary)) return true;
