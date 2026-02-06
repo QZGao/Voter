@@ -15,6 +15,20 @@ type TemplateOption = { value: string; label: string };
 type EntryVoteItem = { id: number; name: string };
 type PreviewVoteItem = { id: number; name: string; text: string };
 
+const entryInfoPromiseCache = new Map<string, Promise<string>>();
+
+function getCachedEntryInfo(entryName: string): Promise<string> {
+	const cached = entryInfoPromiseCache.get(entryName);
+	if (cached) return cached;
+
+	const pending = getXToolsInfo(entryName).catch((error: unknown) => {
+		entryInfoPromiseCache.delete(entryName);
+		throw error;
+	});
+	entryInfoPromiseCache.set(entryName, pending);
+	return pending;
+}
+
 interface DialogAction {
 	label: string;
 	actionType?: "primary" | "progressive";
@@ -46,6 +60,7 @@ interface VoteDialogData {
 	totalSteps: number;
 	selectedEntries: number[];
 	entryInfoHtml: string;
+	entryInfoById: Record<number, string>;
 	isLoadingInfo: boolean;
 	voteMessages: Record<number, string>;
 	useBulleted: boolean;
@@ -123,6 +138,7 @@ function createVoteDialog(sectionID: number): void {
 					// Step 0: Entry selection
 					selectedEntries: [sectionID],
 					entryInfoHtml: "",
+					entryInfoById: {},
 					isLoadingInfo: false,
 
 					// Step 1: Per-entry vote content
@@ -207,19 +223,29 @@ function createVoteDialog(sectionID: number): void {
 				async loadEntryInfo(this: VoteDialogInstance) {
 					if (!this.selectedEntries.length) {
 						this.entryInfoHtml = "";
+						this.entryInfoById = {};
 						return;
 					}
 
 					this.isLoadingInfo = true;
-					const infoPromises: Array<Promise<string>> = this.selectedEntries.map(async (id: number) => {
+					const infoPromises: Array<Promise<{ id: number; html: string }>> = this.selectedEntries.map(async (id: number) => {
 						const entryName = state.sectionTitles.find((x) => x.data === id)?.label || "";
-						if (!entryName) return "";
-						return getXToolsInfo(entryName);
+						if (!entryName) return { id, html: "" };
+						const html = await getCachedEntryInfo(entryName);
+						return { id, html };
 					});
 
 					const results = await Promise.all(infoPromises);
-					const filteredResults = results.filter((html): html is string => Boolean(html));
-					this.entryInfoHtml = filteredResults.map((html) => `<div style="margin-top:0.5em">${html}</div>`).join("");
+					const nextInfoById: Record<number, string> = {};
+					for (const result of results) {
+						nextInfoById[result.id] = result.html || "";
+					}
+					this.entryInfoById = nextInfoById;
+					this.entryInfoHtml = this.selectedEntries
+						.map((id: number) => this.entryInfoById[id])
+						.filter(Boolean)
+						.map((html: string) => `<div style="margin-top:0.5em">${html}</div>`)
+						.join("");
 					this.isLoadingInfo = false;
 				},
 
@@ -417,6 +443,11 @@ function createVoteDialog(sectionID: number): void {
                                 :placeholder="$options.i18n.voteReasonPlaceholder"
                                 rows="3"
                             ></cdx-text-area>
+                            <div
+                                v-if="entryInfoById[item.id]"
+                                class="voter-entry-info voter-entry-info--inline"
+                                v-html="entryInfoById[item.id]"
+                            ></div>
                         </div>
 
                         <div class="voter-form-section" style="padding-bottom: 0;">

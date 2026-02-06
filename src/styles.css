@@ -116,6 +116,11 @@
     font-style: italic;
 }
 
+.voter-entry-info--inline {
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+
 /* Preview Section */
 .voter-preview-section h3 {
     margin: 0 0 12px;
