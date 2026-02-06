@@ -121,20 +121,6 @@ export function refreshPage(entryName: string | undefined) {
 	location.reload();
 }
 
-
-/**
- * 從投票文本中提取模板名（例如 {{支持}}）。
- * @param text {string} 投票文本
- * @returns {string[]} 模板名列表
- */
-function extractTemplateNames(text: string): string[] {
-	const matches = text.match(/{{\s*([^{}]+?)\s*}}/g) || [];
-	const names = matches
-		.map((raw) => raw.replace(/^{{\s*/, '').replace(/\s*}}$/, '').split('|')[0].trim())
-		.filter(Boolean);
-	return [...new Set(names)];
-}
-
 /**
  * 投票動作的完整實現。
  * @param voteIDs {number[]} 投票ID
@@ -145,11 +131,11 @@ function extractTemplateNames(text: string): string[] {
 export async function vote(voteIDs: number[], voteTexts: Record<number, string>, useBulleted: boolean): Promise<boolean> {
 	// event.preventDefault();
 	for (const id of voteIDs) {
-		let finalVoteText = (voteTexts[id] || '').trim();
+		const rawVoteText = (voteTexts[id] || '').trim();
+		let finalVoteText = rawVoteText;
 		if (!/--~{3,}/.test(finalVoteText)) {
 			finalVoteText += '--~~~~';
 		}
-		const templates = extractTemplateNames(finalVoteText);
 
 		let votedPageName = state.sectionTitles.find(x => x.data === id)?.label || `section ${id}`;
 		let indent = useBulleted ? '* ' : ': ';
@@ -165,7 +151,7 @@ export async function vote(voteIDs: number[], voteTexts: Record<number, string>,
 
 		let text = addIndent(finalVoteText, indent);
 		let summary = `/* ${votedPageName} */ `;
-		summary += templates.length ? templates.join('、') : state.convByVar({ hant: '投票', hans: '投票' });
+		summary += rawVoteText || state.convByVar({ hant: '投票', hans: '投票' });
 		summary += ' ([[User:SuperGrey/gadgets/voter|Voter]])';
 
 		if (await voteAPI(state.pageName, destPage, id, text, summary)) return true;
