@@ -36,7 +36,7 @@ class State {
 	/**
 	 * 版本號
 	 */
-	version: string = '4.2.0';
+	version: string = '4.2.2';
 
 	// MediaWiki API 實例
 	private _api: mw.Api | null = null;
