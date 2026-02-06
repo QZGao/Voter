@@ -77,7 +77,27 @@
 .voter-template-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.voter-template-buttons .cdx-button {
+    font-size: 13px;
+    padding: 2px 5px;
+    min-height: inherit;
+}
+
+.voter-entry-vote {
+    border: 1px solid #eaecf0;
+    border-radius: 4px;
+    padding: 12px;
+    margin-top: 12px;
+}
+
+.voter-entry-vote__title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
 }
 
 /* Entry Info */

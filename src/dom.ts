@@ -138,19 +138,19 @@ function extractTemplateNames(text: string): string[] {
 /**
  * 投票動作的完整實現。
  * @param voteIDs {number[]} 投票ID
- * @param voteText {string} 投票內容
+ * @param voteTexts {Record<number, string>} 各條目的投票內容
  * @param useBulleted {boolean} 是否使用 * 縮進
  * @returns {Promise<boolean>} 是否發生衝突
  */
-export async function vote(voteIDs: number[], voteText: string, useBulleted: boolean): Promise<boolean> {
+export async function vote(voteIDs: number[], voteTexts: Record<number, string>, useBulleted: boolean): Promise<boolean> {
 	// event.preventDefault();
-	let finalVoteText = voteText.trim();
-	if (!/--~{3,}/.test(finalVoteText)) {
-		finalVoteText += '--~~~~';
-	}
-	const templates = extractTemplateNames(finalVoteText);
-
 	for (const id of voteIDs) {
+		let finalVoteText = (voteTexts[id] || '').trim();
+		if (!/--~{3,}/.test(finalVoteText)) {
+			finalVoteText += '--~~~~';
+		}
+		const templates = extractTemplateNames(finalVoteText);
+
 		let votedPageName = state.sectionTitles.find(x => x.data === id)?.label || `section ${id}`;
 		let indent = useBulleted ? '* ' : ': ';
 		let destPage = state.pageName;

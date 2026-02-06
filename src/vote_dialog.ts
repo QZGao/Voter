@@ -12,10 +12,12 @@ import { vote } from "./dom";
 
 type EntryOption = { value: number; label: string };
 type TemplateOption = { value: string; label: string };
+type EntryVoteItem = { id: number; name: string };
+type PreviewVoteItem = { id: number; name: string; text: string };
 
 interface DialogAction {
 	label: string;
-	actionType?: 'primary' | 'progressive';
+	actionType?: "primary" | "progressive";
 	disabled?: boolean;
 }
 
@@ -28,15 +30,11 @@ interface VoteDialogI18n {
 	previous: string;
 	selectEntries: string;
 	selectEntriesPlaceholder: string;
-	selectTemplates: string;
 	insertTemplateHint: string;
-	voteReason: string;
 	voteReasonPlaceholder: string;
 	useBulleted: string;
 	previewHeading: string;
 	previewInfo: string;
-	votingFor: string;
-	voteContent: string;
 	noEntriesSelected: string;
 	noVoteContent: string;
 }
@@ -49,7 +47,7 @@ interface VoteDialogData {
 	selectedEntries: number[];
 	entryInfoHtml: string;
 	isLoadingInfo: boolean;
-	voteMessage: string;
+	voteMessages: Record<number, string>;
 	useBulleted: boolean;
 }
 
@@ -58,19 +56,21 @@ interface VoteDialogComputed {
 	validTemplateOptions: TemplateOption[];
 	invalidTemplateOptions: TemplateOption[];
 	allTemplateOptions: TemplateOption[];
-	selectedEntryNames: string[];
-	previewVoteText: string;
+	selectedEntryItems: EntryVoteItem[];
+	previewVoteItems: PreviewVoteItem[];
 	primaryAction: DialogAction;
 	defaultAction: DialogAction;
 }
 
 type VoteDialogInstance = VoteDialogData & VoteDialogComputed & {
 	$options: { i18n: VoteDialogI18n };
+	getDefaultVoteMessage: () => string;
 	loadEntryInfo: () => Promise<void>;
+	syncVoteMessages: () => void;
 	validateStep0: () => boolean;
 	validateStep1: () => boolean;
-	getVoteTextarea: () => HTMLTextAreaElement | null;
-	insertTemplate: (template: string) => void;
+	getVoteTextarea: (entryId: number) => HTMLTextAreaElement | null;
+	insertTemplate: (template: string, entryId: number) => void;
 	onPrimaryAction: () => void;
 	onDefaultAction: () => void;
 	onUpdateOpen: (newValue: boolean) => void;
@@ -90,32 +90,28 @@ function createVoteDialog(sectionID: number): void {
 					hant: `投票助手 (Voter v${state.version})`,
 					hans: `投票助手 (Voter v${state.version})`
 				}),
-				submitting: state.convByVar({ hant: '儲存中…', hans: '保存中…' }),
-				submit: state.convByVar({ hant: '儲存投票', hans: '保存投票' }),
-				cancel: state.convByVar({ hant: '取消', hans: '取消' }),
-				next: state.convByVar({ hant: '下一步', hans: '下一步' }),
-				previous: state.convByVar({ hant: '上一步', hans: '上一步' }),
+				submitting: state.convByVar({ hant: "儲存中…", hans: "保存中…" }),
+				submit: state.convByVar({ hant: "儲存投票", hans: "保存投票" }),
+				cancel: state.convByVar({ hant: "取消", hans: "取消" }),
+				next: state.convByVar({ hant: "下一步", hans: "下一步" }),
+				previous: state.convByVar({ hant: "上一步", hans: "上一步" }),
 
 				// Step 0: Entry Selection
-				selectEntries: state.convByVar({ hant: '投票條目', hans: '投票条目' }),
-				selectEntriesPlaceholder: state.convByVar({ hant: '選擇要投票的條目', hans: '选择要投票的条目' }),
+				selectEntries: state.convByVar({ hant: "投票條目", hans: "投票条目" }),
+				selectEntriesPlaceholder: state.convByVar({ hant: "選擇要投票的條目", hans: "选择要投票的条目" }),
 
-				// Step 1: Template Selection
-				selectTemplates: state.convByVar({ hant: '投票模板', hans: '投票模板' }),
-				insertTemplateHint: state.convByVar({ hant: '點擊模板按鈕可插入到下方文字框', hans: '点击模板按钮可插入到下方文本框' }),
-				voteReason: state.convByVar({ hant: '投票內容（無須簽名）', hans: '投票内容（无须签名）' }),
-				voteReasonPlaceholder: state.convByVar({ hant: '輸入投票內容…', hans: '输入投票内容…' }),
-				useBulleted: state.convByVar({ hant: '使用 * 縮排', hans: '使用 * 缩进' }),
+				// Step 1: Per-entry Vote Content
+				insertTemplateHint: state.convByVar({ hant: "模板按鈕會插入到游標所在位置", hans: "模板按钮会插入到光标所在位置" }),
+				voteReasonPlaceholder: state.convByVar({ hant: "輸入投票內容…", hans: "输入投票内容…" }),
+				useBulleted: state.convByVar({ hant: "使用 * 縮排", hans: "使用 * 缩进" }),
 
 				// Step 2: Preview
-				previewHeading: state.convByVar({ hant: '預覽投票內容', hans: '预览投票内容' }),
-				previewInfo: state.convByVar({ hant: '以下是將要提交的投票內容：', hans: '以下是将要提交的投票内容：' }),
-				votingFor: state.convByVar({ hant: '投票條目：', hans: '投票条目：' }),
-				voteContent: state.convByVar({ hant: '投票內容：', hans: '投票内容：' }),
+				previewHeading: state.convByVar({ hant: "預覽投票內容", hans: "预览投票内容" }),
+				previewInfo: state.convByVar({ hant: "以下是將要提交的投票內容：", hans: "以下是将要提交的投票内容：" }),
 
 				// Validation
-				noEntriesSelected: state.convByVar({ hant: '請選擇至少一個投票條目。', hans: '请选择至少一个投票条目。' }),
-				noVoteContent: state.convByVar({ hant: '請輸入投票內容，或先插入模板。', hans: '请输入投票内容，或先插入模板。' }),
+				noEntriesSelected: state.convByVar({ hant: "請選擇至少一個投票條目。", hans: "请选择至少一个投票条目。" }),
+				noVoteContent: state.convByVar({ hant: "請輸入投票內容，或先插入模板。", hans: "请输入投票内容，或先插入模板。" })
 			},
 			data() {
 				return {
@@ -126,44 +122,52 @@ function createVoteDialog(sectionID: number): void {
 
 					// Step 0: Entry selection
 					selectedEntries: [sectionID],
-					entryInfoHtml: '',
+					entryInfoHtml: "",
 					isLoadingInfo: false,
 
-					// Step 1: Template & reason
-					voteMessage: state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : '',
-					useBulleted: true,
+					// Step 1: Per-entry vote content
+					voteMessages: {
+						[sectionID]: state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : ""
+					},
+					useBulleted: true
 				};
 			},
 			computed: {
 				entryOptions(this: VoteDialogInstance): EntryOption[] {
-					return state.sectionTitles.map(item => ({ value: item.data, label: item.label }));
+					return state.sectionTitles.map((item) => ({ value: item.data, label: item.label }));
 				},
 				validTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
-					return (state.validVoteTemplates || []).map(item => ({ value: item.data, label: item.label }));
+					return (state.validVoteTemplates || []).map((item) => ({ value: item.data, label: item.label }));
 				},
 				invalidTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
-					return (state.invalidVoteTemplates || []).map(item => ({ value: item.data, label: item.label }));
+					return (state.invalidVoteTemplates || []).map((item) => ({ value: item.data, label: item.label }));
 				},
 				allTemplateOptions(this: VoteDialogInstance): TemplateOption[] {
 					return [...this.validTemplateOptions, ...this.invalidTemplateOptions];
 				},
-				selectedEntryNames(this: VoteDialogInstance): string[] {
+				selectedEntryItems(this: VoteDialogInstance): EntryVoteItem[] {
 					return this.selectedEntries.map((id: number) => {
-						const entry = state.sectionTitles.find(x => x.data === id);
-						return entry ? entry.label : `Section ${id}`;
+						const entry = state.sectionTitles.find((x) => x.data === id);
+						return { id, name: entry ? entry.label : `Section ${id}` };
 					});
 				},
-				previewVoteText(this: VoteDialogInstance): string {
-					const message = (this.voteMessage || '').trim();
-					return message ? `${message}--~~~~` : '--~~~~';
+				previewVoteItems(this: VoteDialogInstance): PreviewVoteItem[] {
+					return this.selectedEntryItems.map((item: EntryVoteItem) => {
+						const message = (this.voteMessages[item.id] || "").trim();
+						return {
+							id: item.id,
+							name: item.name,
+							text: message ? `${message}--~~~~` : "--~~~~"
+						};
+					});
 				},
 				primaryAction(this: VoteDialogInstance): DialogAction {
 					if (this.currentStep < this.totalSteps - 1) {
-						return { label: this.$options.i18n.next, actionType: 'primary', disabled: false };
+						return { label: this.$options.i18n.next, actionType: "primary", disabled: false };
 					}
 					return {
 						label: this.isSubmitting ? this.$options.i18n.submitting : this.$options.i18n.submit,
-						actionType: 'progressive',
+						actionType: "progressive",
 						disabled: this.isSubmitting
 					};
 				},
@@ -172,75 +176,97 @@ function createVoteDialog(sectionID: number): void {
 						return { label: this.$options.i18n.previous };
 					}
 					return { label: this.$options.i18n.cancel };
-				},
+				}
 			},
 			watch: {
 				selectedEntries: {
 					handler(this: VoteDialogInstance) {
+						this.syncVoteMessages();
 						void this.loadEntryInfo();
 					},
-					immediate: true,
-				},
+					immediate: true
+				}
 			},
 			methods: {
 				getStepClass(this: VoteDialogInstance, step: number) {
-					return { 'voter-multistep-dialog__stepper__step--active': step <= this.currentStep };
+					return { "voter-multistep-dialog__stepper__step--active": step <= this.currentStep };
+				},
+
+				getDefaultVoteMessage(this: VoteDialogInstance): string {
+					return this.validTemplateOptions.length > 0 ? `{{${this.validTemplateOptions[0].value}}}。` : "";
+				},
+
+				syncVoteMessages(this: VoteDialogInstance) {
+					const nextMessages: Record<number, string> = {};
+					for (const id of this.selectedEntries) {
+						nextMessages[id] = this.voteMessages[id] || this.getDefaultVoteMessage();
+					}
+					this.voteMessages = nextMessages;
 				},
 
 				async loadEntryInfo(this: VoteDialogInstance) {
 					if (!this.selectedEntries.length) {
-						this.entryInfoHtml = '';
+						this.entryInfoHtml = "";
 						return;
 					}
 
 					this.isLoadingInfo = true;
 					const infoPromises: Array<Promise<string>> = this.selectedEntries.map(async (id: number) => {
-						const entryName = state.sectionTitles.find(x => x.data === id)?.label || '';
-						if (!entryName) return '';
+						const entryName = state.sectionTitles.find((x) => x.data === id)?.label || "";
+						if (!entryName) return "";
 						return getXToolsInfo(entryName);
 					});
 
 					const results = await Promise.all(infoPromises);
 					const filteredResults = results.filter((html): html is string => Boolean(html));
-					this.entryInfoHtml = filteredResults.map(html => `<div style="margin-top:0.5em">${html}</div>`).join('');
+					this.entryInfoHtml = filteredResults.map((html) => `<div style="margin-top:0.5em">${html}</div>`).join("");
 					this.isLoadingInfo = false;
 				},
 
 				validateStep0(this: VoteDialogInstance): boolean {
 					if (!this.selectedEntries.length) {
-						mw.notify(this.$options.i18n.noEntriesSelected, { type: 'error', title: '[Voter]' });
+						mw.notify(this.$options.i18n.noEntriesSelected, { type: "error", title: "[Voter]" });
 						return false;
 					}
 					return true;
 				},
 
 				validateStep1(this: VoteDialogInstance): boolean {
-					if (!(this.voteMessage || '').trim()) {
-						mw.notify(this.$options.i18n.noVoteContent, { type: 'error', title: '[Voter]' });
-						return false;
+					for (const item of this.selectedEntryItems) {
+						if (!(this.voteMessages[item.id] || "").trim()) {
+							mw.notify(`${this.$options.i18n.noVoteContent} (${item.name})`, { type: "error", title: "[Voter]" });
+							return false;
+						}
 					}
 					return true;
 				},
 
-				getVoteTextarea(): HTMLTextAreaElement | null {
-					return document.querySelector('.voter-dialog textarea');
+				getVoteTextarea(entryId: number): HTMLTextAreaElement | null {
+					const container = document.querySelector(`.voter-entry-vote[data-entry-id="${entryId}"]`);
+					return container ? container.querySelector("textarea") : null;
 				},
 
-				insertTemplate(this: VoteDialogInstance, template: string) {
+				insertTemplate(this: VoteDialogInstance, template: string, entryId: number) {
 					const templateText = `{{${template}}}`;
-					const current = this.voteMessage || '';
-					const textArea = this.getVoteTextarea();
+					const current = this.voteMessages[entryId] || "";
+					const textArea = this.getVoteTextarea(entryId);
 					if (!textArea) {
-						this.voteMessage = `${current}${templateText}`;
+						this.voteMessages = {
+							...this.voteMessages,
+							[entryId]: `${current}${templateText}`
+						};
 						return;
 					}
 
 					const start = textArea.selectionStart ?? current.length;
 					const end = textArea.selectionEnd ?? start;
-					this.voteMessage = `${current.slice(0, start)}${templateText}${current.slice(end)}`;
+					this.voteMessages = {
+						...this.voteMessages,
+						[entryId]: `${current.slice(0, start)}${templateText}${current.slice(end)}`
+					};
 
 					setTimeout(() => {
-						const focusedTextArea = this.getVoteTextarea();
+						const focusedTextArea = this.getVoteTextarea(entryId);
 						if (!focusedTextArea) return;
 						const nextCursor = start + templateText.length;
 						focusedTextArea.focus();
@@ -292,33 +318,27 @@ function createVoteDialog(sectionID: number): void {
 					this.isSubmitting = true;
 
 					try {
-						const hasConflict = await vote(
-							this.selectedEntries,
-							this.voteMessage,
-							this.useBulleted
-						);
+						const hasConflict = await vote(this.selectedEntries, this.voteMessages, this.useBulleted);
 
 						if (hasConflict) {
 							this.isSubmitting = false;
 							return;
 						}
 
-						// Vote completed successfully
-						mw.notify(state.convByVar({ hant: '投票已成功提交。', hans: '投票已成功提交。' }), { tag: 'voter' });
+						mw.notify(state.convByVar({ hant: "投票已成功提交。", hans: "投票已成功提交。" }), { tag: "voter" });
 						this.isSubmitting = false;
 						this.open = false;
 
 						setTimeout(() => {
 							removeDialogMount();
 						}, 300);
-
 					} catch (error: unknown) {
-						console.error('[Voter] submitVote failed:', error);
-						const msg = state.convByVar({ hant: '投票提交失敗，請稍後再試。', hans: '投票提交失败，请稍后再试。' });
-						mw.notify(msg, { type: 'error', title: '[Voter]' });
+						console.error("[Voter] submitVote failed:", error);
+						const msg = state.convByVar({ hant: "投票提交失敗，請稍後再試。", hans: "投票提交失败，请稍后再试。" });
+						mw.notify(msg, { type: "error", title: "[Voter]" });
 						this.isSubmitting = false;
 					}
-				},
+				}
 			},
 			template: `
                 <cdx-dialog
@@ -350,7 +370,6 @@ function createVoteDialog(sectionID: number): void {
                         </div>
                     </template>
 
-                    <!-- Step 0: Entry Selection -->
                     <div v-if="currentStep === 0" class="voter-form-section">
                         <label class="voter-form-label">{{ $options.i18n.selectEntries }}</label>
                         <div class="voter-checkbox-grid">
@@ -374,64 +393,63 @@ function createVoteDialog(sectionID: number): void {
                         </div>
                     </div>
 
-                    <!-- Step 1: Template Selection & Reason -->
                     <div v-else-if="currentStep === 1" class="voter-form-section">
-                        <label class="voter-form-label">{{ $options.i18n.selectTemplates }}</label>
                         <div class="voter-template-hint">{{ $options.i18n.insertTemplateHint }}</div>
-                        <div class="voter-template-buttons">
-                            <cdx-button
-                                v-for="option in allTemplateOptions"
-                                :key="option.value"
-                                @click="insertTemplate(option.value)"
-                            >
-                                {{ option.label }}
-                            </cdx-button>
-                        </div>
 
-                        <div class="voter-form-section">
-                            <label class="voter-form-label">{{ $options.i18n.voteReason }}</label>
+                        <div
+                            v-for="item in selectedEntryItems"
+                            :key="item.id"
+                            class="voter-entry-vote"
+                            :data-entry-id="item.id"
+                        >
+                            <div class="voter-entry-vote__title">{{ item.name }}</div>
+                            <div class="voter-template-buttons">
+                                <cdx-button
+                                    v-for="option in allTemplateOptions"
+                                    :key="option.value"
+                                    @click="insertTemplate(option.value, item.id)"
+                                >
+                                    {{ option.label }}
+                                </cdx-button>
+                            </div>
                             <cdx-text-area
-                                v-model="voteMessage"
+                                v-model="voteMessages[item.id]"
                                 :placeholder="$options.i18n.voteReasonPlaceholder"
                                 rows="3"
                             ></cdx-text-area>
                         </div>
 
-                        <div class="voter-form-section" style="padding-top: 0;">
+                        <div class="voter-form-section" style="padding-bottom: 0;">
                             <cdx-checkbox v-model="useBulleted">
                                 {{ $options.i18n.useBulleted }}
                             </cdx-checkbox>
                         </div>
                     </div>
 
-                    <!-- Step 2: Preview -->
                     <div v-else-if="currentStep === 2" class="voter-preview-section">
                         <h3>{{ $options.i18n.previewHeading }}</h3>
                         <p>{{ $options.i18n.previewInfo }}</p>
 
-                        <div class="voter-preview-item">
-                            <strong>{{ $options.i18n.votingFor }}</strong>
-                            <ul>
-                                <li v-for="name in selectedEntryNames" :key="name">{{ name }}</li>
-                            </ul>
-                        </div>
-
-                        <div class="voter-preview-item">
-                            <strong>{{ $options.i18n.voteContent }}</strong>
-                            <pre class="voter-preview-code">{{ previewVoteText }}</pre>
+                        <div
+                            v-for="item in previewVoteItems"
+                            :key="item.id"
+                            class="voter-preview-item"
+                        >
+                            <strong>{{ item.name }}</strong>
+                            <pre class="voter-preview-code">{{ item.text }}</pre>
                         </div>
                     </div>
                 </cdx-dialog>
-            `,
+            `
 		});
 
 		registerCodexComponents(app, Codex);
 		mountApp(app);
 	}).catch((error: unknown) => {
-		console.error('[Voter] 無法加載 Codex:', error);
-		mw.notify(state.convByVar({ hant: '無法加載對話框組件。', hans: '无法加载对话框组件。' }), {
-			type: 'error',
-			title: '[Voter]'
+		console.error("[Voter] 無法加載 Codex:", error);
+		mw.notify(state.convByVar({ hant: "無法加載對話框組件。", hans: "无法加载对话框组件。" }), {
+			type: "error",
+			title: "[Voter]"
 		});
 	});
 }
