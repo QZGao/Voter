@@ -30,7 +30,7 @@ export function addVoteButtons() {
 
 		if (anchor) {
 			let sectionID = getSectionID(index + 1);
-			const $voteLink = $('<a>').text(state.convByVar({ hant: '投票', hans: '投票' })).css({'cursor': 'pointer', 'margin-left': '0.25em'});
+			const $voteLink = $('<a>').text(state.convByVar({ hant: '投票', hans: '投票' })).css({ 'cursor': 'pointer', 'margin-left': '0.25em' });
 			$voteLink.on('click', (e) => {
 				e.preventDefault();
 				openVoteDialog(sectionID);
@@ -51,7 +51,7 @@ export function addVoteButtons() {
 
 /**
  * 取得特定章節編輯編號（支援不同參數位置）。
- * @param childid {number} 章節編號
+ * @param {number} childid 章節編號
  * @returns {number} 編輯編號
  */
 function getSectionID(childid: number): number {
@@ -83,7 +83,7 @@ function getSectionID(childid: number): number {
 
 /**
  * 比對標題與文本內容。
- * @param title {string} 標題
+ * @param {string} title 標題
  * @returns {string[]} 標題變體
  */
 function titleVariants(title: string): string[] {
@@ -94,8 +94,8 @@ function titleVariants(title: string): string[] {
 
 /**
  * 比對文本與標題變體。
- * @param text {string} 文本內容
- * @param title {string} 標題
+ * @param {string} text 文本內容
+ * @param {string} title 標題
  * @returns {boolean} 是否包含標題變體
  */
 export function textMatchTitleVariants(text: string, title: string): boolean {
@@ -103,18 +103,8 @@ export function textMatchTitleVariants(text: string, title: string): boolean {
 }
 
 /**
- * 將文字加上縮排。
- * @param text {string} 文字內容
- * @param indent {string} 縮排字串
- * @returns {string} 加上縮排的文字
- */
-export function addIndent(text: string, indent: string): string {
-	return text.replace(/^/gm, indent);
-}
-
-/**
  * 刷新頁面內容。
- * @param entryName {string} 章節名稱
+ * @param {string | undefined} entryName 章節名稱
  */
 export function refreshPage(entryName: string | undefined) {
 	location.href = mw.util.getUrl(state.pageName + '#' + entryName);  // 先跳轉到投票章節，這樣重載後就不會跳到最上面了
@@ -123,34 +113,27 @@ export function refreshPage(entryName: string | undefined) {
 
 /**
  * 投票動作的完整實現。
- * @param voteIDs {number[]} 投票ID
- * @param voteTexts {Record<number, string>} 各條目的投票內容
- * @param useBulleted {boolean} 是否使用 * 縮進
+ * @param {number[]} voteIDs 投票ID
+ * @param {Record<number, string>} builtVoteTexts 各條目已建構完成的投票 wikitext
+ * @param {Record<number, string>} rawVoteTexts 各條目原始投票內容（用於摘要）
  * @returns {Promise<boolean>} 是否發生衝突
  */
-export async function vote(voteIDs: number[], voteTexts: Record<number, string>, useBulleted: boolean): Promise<boolean> {
+export async function vote(voteIDs: number[], builtVoteTexts: Record<number, string>, rawVoteTexts: Record<number, string>): Promise<boolean> {
 	// event.preventDefault();
 	for (const id of voteIDs) {
-		const rawVoteText = (voteTexts[id] || '').trim();
+		const rawVoteText = (rawVoteTexts[id] || '').trim();
 		const summaryVoteText = rawVoteText.length > 100 ? `${rawVoteText.slice(0, 100)}...` : rawVoteText;
-		let finalVoteText = rawVoteText;
-		if (!/--~{3,}/.test(finalVoteText)) {
-			finalVoteText += '--~~~~';
-		}
 
 		let votedPageName = state.sectionTitles.find(x => x.data === id)?.label || `section ${id}`;
-		let indent = useBulleted ? '* ' : ': ';
 		let destPage = state.pageName;
 
-		if (state.pageName === 'Wikipedia:新条目推荐/候选') {
-			indent = useBulleted ? '** ' : '*: ';
-		} else if (state.pageName === 'Wikipedia:優良條目評選') {
+		if (state.pageName === 'Wikipedia:優良條目評選') {
 			destPage += '/提名區';
 		} else if (/^Wikipedia:(典范条目评选|特色列表评选)$/i.test(state.pageName)) {
 			destPage += '/提名区';
 		}
 
-		let text = addIndent(finalVoteText, indent);
+		const text = builtVoteTexts[id] || '';
 		let summary = `/* ${votedPageName} */ `;
 		summary += summaryVoteText || state.convByVar({ hant: '投票', hans: '投票' });
 		summary += ' ([[User:SuperGrey/gadgets/voter|Voter]])';

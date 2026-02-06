@@ -69,7 +69,7 @@ export async function loadCodexAndVue(): Promise<{ Vue: VueModule; Codex: CodexM
 /**
  * Ensure a DOM mount point exists for Vue apps.
  * Creates a div with the provided id and appends to body if missing.
- * @param id - Element id to create or reuse.
+ * @param {string} id Element id to create or reuse.
  * @returns The mount point element.
  */
 export function ensureMount(id = MOUNT_ID): HTMLElement {
@@ -84,8 +84,8 @@ export function ensureMount(id = MOUNT_ID): HTMLElement {
 
 /**
  * Ensure a style element with given id exists, injecting the provided CSS text.
- * @param id - Element id for the style tag.
- * @param cssText - CSS text content to inject.
+ * @param {string} id Element id for the style tag.
+ * @param {string} cssText CSS text content to inject.
  */
 export function ensureStyleElement(id: string, cssText: string): void {
     if (document.getElementById(id)) return;
@@ -116,7 +116,7 @@ export function createDialogMountIfNeeded(): HTMLElement {
 /**
  * Mount a Vue app to the dialog mount point.
  * Creates the mount point if needed and stores references to the app and root.
- * @param app - The Vue app instance to mount.
+ * @param {VueApp} app The Vue app instance to mount.
  * @returns The mounted Vue app.
  */
 export function mountApp(app: VueApp): VueApp {
@@ -158,8 +158,8 @@ export function removeDialogMount(): void {
 /**
  * Register Codex UI components with a Vue app.
  * Registers CdxDialog, CdxButton, CdxSelect, and CdxTextInput.
- * @param app - The Vue app to register components with.
- * @param Codex - The Codex module containing component definitions.
+ * @param {VueApp} app The Vue app to register components with.
+ * @param {CodexModule} Codex The Codex module containing component definitions.
  */
 export function registerCodexComponents(app: VueApp, Codex: CodexModule): void {
     if (!app || !app.component || !Codex) return;
