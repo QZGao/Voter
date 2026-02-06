@@ -45,7 +45,7 @@ interface VotePageQueryResponse {
 
 /**
  * 獲取XTools頁面資訊。無法獲取時按下不表，返回空字串。
- * @param pageName {string} 頁面名稱
+ * @param {string} pageName 頁面名稱
  * @returns {Promise<string>} XTools頁面資訊。
  */
 export async function getXToolsInfo(pageName: string): Promise<string> {
@@ -93,11 +93,11 @@ export async function getXToolsInfo(pageName: string): Promise<string> {
 
 /**
  * 單次處理投票寫入並檢查衝突。
- * @param tracePage {string} 追蹤頁面
- * @param destPage {string} 目標頁面
- * @param sectionID {number} 章節編號
- * @param text {string} 投票內容
- * @param summary {string} 編輯摘要
+ * @param {string} tracePage 追蹤頁面
+ * @param {string} destPage 目標頁面
+ * @param {number} sectionID 章節編號
+ * @param {string} text 投票內容
+ * @param {string} summary 編輯摘要
  * @returns {Promise<boolean>} 是否發生衝突
  */
 export async function voteAPI(tracePage: string, destPage: string, sectionID: number, text: string, summary: string): Promise<boolean> {

@@ -1,5 +1,6 @@
 import state from "./state";
 import { getXToolsInfo } from "./api";
+import { buildWikitext } from "./build_comment";
 import {
 	loadCodexAndVue,
 	mountApp,
@@ -40,6 +41,37 @@ const entryInfoPromiseCache = new Map<string, Promise<string>>();
 const voteMessageCache = new Map<string, string>();
 let codeMirrorRequirePromise: Promise<CodeMirrorRequire> | null = null;
 
+/**
+ * 根據是否使用項目符號與頁面類型，取得投票內容縮排字串。
+ * @param {boolean} useBulleted 是否使用 * 縮排
+ * @returns {string} 對應的縮排字串
+ */
+function getVoteIndent(useBulleted: boolean): string {
+	if (state.pageName === 'Wikipedia:新条目推荐/候选') {
+		return useBulleted ? '**' : '*:';
+	}
+	return useBulleted ? '*' : ':';
+}
+
+/**
+ * 建構最終提交與預覽使用的投票 wikitext。
+ * @param {string} rawText 原始投票文字
+ * @param {string} indent 縮排字串
+ * @returns {string} 處理後的投票 wikitext
+ */
+function buildFinalVoteWikitext(rawText: string, indent: string): string {
+	let finalVoteText = rawText.trim();
+	if (!/--~{3,}/.test(finalVoteText)) {
+		finalVoteText += '--~~~~';
+	}
+	return buildWikitext(finalVoteText, indent);
+}
+
+/**
+ * 獲取條目資訊，使用緩存以避免重複請求。
+ * @param {string} entryName 條目名稱
+ * @returns {Promise<string>} 條目資訊的HTML內容
+ */
 function getCachedEntryInfo(entryName: string): Promise<string> {
 	const cached = entryInfoPromiseCache.get(entryName);
 	if (cached) return cached;
@@ -52,6 +84,10 @@ function getCachedEntryInfo(entryName: string): Promise<string> {
 	return pending;
 }
 
+/**
+ * 加載CodeMirror模塊，使用緩存以避免重複加載。
+ * @return {Promise<CodeMirrorRequire>} 加載完成後的CodeMirror require函數
+ */
 function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
 	if (codeMirrorRequirePromise) {
 		return codeMirrorRequirePromise;
@@ -72,16 +108,31 @@ function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
 	return codeMirrorRequirePromise;
 }
 
+/**
+ * 根據條目ID獲取條目名稱。
+ * @param {number} entryId 條目ID
+ * @return {string} 條目名稱，如果未找到則返回空字符串
+ */
 function getEntryNameById(entryId: number): string {
 	return state.sectionTitles.find((x) => x.data === entryId)?.label || "";
 }
 
+/**
+ * 根據條目ID獲取緩存的投票訊息。
+ * @param {number} entryId 條目ID
+ * @return {string | undefined} 緩存的投票訊息，如果未找到則返回undefined
+ */
 function getCachedVoteMessageById(entryId: number): string | undefined {
 	const entryName = getEntryNameById(entryId);
 	if (!entryName) return undefined;
 	return voteMessageCache.get(entryName);
 }
 
+/**
+ * 根據條目ID設置緩存的投票訊息。
+ * @param {number} entryId 條目ID
+ * @param {string} message 要緩存的投票訊息
+ */
 function setCachedVoteMessageById(entryId: number, message: string): void {
 	const entryName = getEntryNameById(entryId);
 	if (!entryName) return;
@@ -161,7 +212,7 @@ type VoteDialogInstance = VoteDialogData & VoteDialogComputed & {
 
 /**
  * 創建投票對話框。
- * @param sectionID 章節編號
+ * @param {number} sectionID 章節編號
  */
 function createVoteDialog(sectionID: number): void {
 	loadCodexAndVue().then(({ Vue, Codex }: { Vue: VueModule; Codex: CodexModule }) => {
@@ -238,12 +289,13 @@ function createVoteDialog(sectionID: number): void {
 					});
 				},
 				previewVoteItems(this: VoteDialogInstance): PreviewVoteItem[] {
+					const indent = getVoteIndent(this.useBulleted);
 					return this.selectedEntryItems.map((item: EntryVoteItem) => {
-						const message = (this.voteMessages[item.id] || "").trim();
+						const message = this.voteMessages[item.id] || "";
 						return {
 							id: item.id,
 							name: item.name,
-							text: message ? `${message}--~~~~` : "--~~~~"
+							text: buildFinalVoteWikitext(message, indent)
 						};
 					});
 				},
@@ -553,7 +605,12 @@ function createVoteDialog(sectionID: number): void {
 					this.syncVoteMessagesFromTextareas();
 
 					try {
-						const hasConflict = await vote(this.selectedEntries, this.voteMessages, this.useBulleted);
+						const indent = getVoteIndent(this.useBulleted);
+						const builtVoteTexts = this.selectedEntries.reduce((acc: Record<number, string>, id: number) => {
+							acc[id] = buildFinalVoteWikitext(this.voteMessages[id] || "", indent);
+							return acc;
+						}, {});
+						const hasConflict = await vote(this.selectedEntries, builtVoteTexts, this.voteMessages);
 
 						if (hasConflict) {
 							this.isSubmitting = false;
@@ -698,7 +755,7 @@ function createVoteDialog(sectionID: number): void {
 
 /**
  * 打開投票對話框。
- * @param sectionID 章節編號
+ * @param {number} sectionID 章節編號
  */
 export function openVoteDialog(sectionID: number): void {
 	const mountedApp = getMountedApp();

@@ -4,7 +4,7 @@ import styles from './styles.css';
 
 /**
  * 將 CSS 樣式注入到頁面中。
- * @param css {string} 要注入的 CSS 樣式
+ * @param {string} css 要注入的 CSS 樣式
  */
 function injectStyles(css: string): void {
 	if (!css) return;
