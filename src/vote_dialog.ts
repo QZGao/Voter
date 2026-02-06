@@ -37,6 +37,7 @@ type CodeMirrorBinding = {
 };
 
 const entryInfoPromiseCache = new Map<string, Promise<string>>();
+const voteMessageCache = new Map<string, string>();
 let codeMirrorRequirePromise: Promise<CodeMirrorRequire> | null = null;
 
 function getCachedEntryInfo(entryName: string): Promise<string> {
@@ -69,6 +70,22 @@ function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
 	});
 
 	return codeMirrorRequirePromise;
+}
+
+function getEntryNameById(entryId: number): string {
+	return state.sectionTitles.find((x) => x.data === entryId)?.label || "";
+}
+
+function getCachedVoteMessageById(entryId: number): string | undefined {
+	const entryName = getEntryNameById(entryId);
+	if (!entryName) return undefined;
+	return voteMessageCache.get(entryName);
+}
+
+function setCachedVoteMessageById(entryId: number, message: string): void {
+	const entryName = getEntryNameById(entryId);
+	if (!entryName) return;
+	voteMessageCache.set(entryName, message);
 }
 
 interface DialogAction {
@@ -177,6 +194,8 @@ function createVoteDialog(sectionID: number): void {
 				noVoteContent: state.convByVar({ hant: "請輸入投票內容，或先插入模板。", hans: "请输入投票内容，或先插入模板。" })
 			},
 			data() {
+				const defaultVoteMessage = state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : "";
+				const initialVoteMessage = getCachedVoteMessageById(sectionID) ?? defaultVoteMessage;
 				return {
 					open: true,
 					isSubmitting: false,
@@ -191,7 +210,7 @@ function createVoteDialog(sectionID: number): void {
 
 					// Step 1: Per-entry vote content
 					voteMessages: {
-						[sectionID]: state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : ""
+						[sectionID]: initialVoteMessage
 					},
 					codeMirrorByEntryId: {},
 					useBulleted: true
@@ -246,6 +265,9 @@ function createVoteDialog(sectionID: number): void {
 			watch: {
 				selectedEntries: {
 					handler(this: VoteDialogInstance) {
+						if (this.currentStep === 1) {
+							this.syncVoteMessagesFromTextareas();
+						}
 						this.syncVoteMessages();
 						void this.loadEntryInfo();
 						if (this.currentStep === 1) {
@@ -278,7 +300,12 @@ function createVoteDialog(sectionID: number): void {
 				syncVoteMessages(this: VoteDialogInstance) {
 					const nextMessages: Record<number, string> = {};
 					for (const id of this.selectedEntries) {
-						nextMessages[id] = this.voteMessages[id] || this.getDefaultVoteMessage();
+						if (Object.prototype.hasOwnProperty.call(this.voteMessages, id)) {
+							nextMessages[id] = this.voteMessages[id];
+						} else {
+							nextMessages[id] = getCachedVoteMessageById(id) ?? this.getDefaultVoteMessage();
+						}
+						setCachedVoteMessageById(id, nextMessages[id]);
 					}
 					this.voteMessages = nextMessages;
 				},
@@ -297,6 +324,7 @@ function createVoteDialog(sectionID: number): void {
 						if (textarea) {
 							nextMessages[id] = textarea.value;
 						}
+						setCachedVoteMessageById(id, nextMessages[id]);
 					}
 					this.voteMessages = nextMessages;
 				},
@@ -442,6 +470,7 @@ function createVoteDialog(sectionID: number): void {
 							...this.voteMessages,
 							[entryId]: updated
 						};
+						setCachedVoteMessageById(entryId, updated);
 						if (typeof view.focus === "function") {
 							view.focus();
 						}
@@ -455,6 +484,7 @@ function createVoteDialog(sectionID: number): void {
 							...this.voteMessages,
 							[entryId]: `${current}${templateText}`
 						};
+						setCachedVoteMessageById(entryId, `${current}${templateText}`);
 						return;
 					}
 
@@ -464,6 +494,7 @@ function createVoteDialog(sectionID: number): void {
 						...this.voteMessages,
 						[entryId]: `${current.slice(0, start)}${templateText}${current.slice(end)}`
 					};
+					setCachedVoteMessageById(entryId, `${current.slice(0, start)}${templateText}${current.slice(end)}`);
 
 					setTimeout(() => {
 						const focusedTextArea = this.getVoteTextarea(entryId);
