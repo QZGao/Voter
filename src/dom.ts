@@ -132,6 +132,7 @@ export async function vote(voteIDs: number[], voteTexts: Record<number, string>,
 	// event.preventDefault();
 	for (const id of voteIDs) {
 		const rawVoteText = (voteTexts[id] || '').trim();
+		const summaryVoteText = rawVoteText.length > 100 ? `${rawVoteText.slice(0, 100)}...` : rawVoteText;
 		let finalVoteText = rawVoteText;
 		if (!/--~{3,}/.test(finalVoteText)) {
 			finalVoteText += '--~~~~';
@@ -151,7 +152,7 @@ export async function vote(voteIDs: number[], voteTexts: Record<number, string>,
 
 		let text = addIndent(finalVoteText, indent);
 		let summary = `/* ${votedPageName} */ `;
-		summary += rawVoteText || state.convByVar({ hant: '投票', hans: '投票' });
+		summary += summaryVoteText || state.convByVar({ hant: '投票', hans: '投票' });
 		summary += ' ([[User:SuperGrey/gadgets/voter|Voter]])';
 
 		if (await voteAPI(state.pageName, destPage, id, text, summary)) return true;
