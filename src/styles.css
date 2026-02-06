@@ -50,6 +50,12 @@
     background-color: #36c;
 }
 
+.cdx-dialog__body h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
 /* Form Sections */
 .voter-form-section {
     padding: 16px 0;
@@ -68,6 +74,38 @@
     gap: 0 8px;
 }
 
+.voter-template-hint {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #54595d;
+}
+
+.voter-template-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.voter-template-buttons .cdx-button {
+    font-size: 13px;
+    padding: 2px 5px;
+    min-height: inherit;
+}
+
+.voter-entry-vote {
+    /* border: 1px solid #eaecf0;
+    border-radius: 4px;
+    padding: 12px; */
+    margin-top: 12px;
+}
+
+.voter-entry-vote__title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
 /* Entry Info */
 .voter-entry-info {
     margin-top: 12px;
@@ -84,18 +122,12 @@
     font-style: italic;
 }
 
+.voter-entry-info--inline {
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+
 /* Preview Section */
-.voter-preview-section h3 {
-    margin: 0 0 12px;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.voter-preview-section p {
-    margin: 0 0 16px;
-    color: #54595d;
-}
-
 .voter-preview-item {
     margin-bottom: 16px;
 }

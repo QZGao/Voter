@@ -121,23 +121,23 @@ export function refreshPage(entryName: string | undefined) {
 	location.reload();
 }
 
-
 /**
  * 投票動作的完整實現。
  * @param voteIDs {number[]} 投票ID
- * @param templates {string[]} 投票模板
- * @param message {string} 投票理由
+ * @param voteTexts {Record<number, string>} 各條目的投票內容
  * @param useBulleted {boolean} 是否使用 * 縮進
  * @returns {Promise<boolean>} 是否發生衝突
  */
-export async function vote(voteIDs: number[], templates: string[], message: string, useBulleted: boolean): Promise<boolean> {
+export async function vote(voteIDs: number[], voteTexts: Record<number, string>, useBulleted: boolean): Promise<boolean> {
 	// event.preventDefault();
-	let VTReason = templates.map(str => `{{${str}}}`).join('；');
-	message = message.trim();
-	VTReason += message ? '：' + message : '。';
-	VTReason += '--~~~~';
-
 	for (const id of voteIDs) {
+		const rawVoteText = (voteTexts[id] || '').trim();
+		const summaryVoteText = rawVoteText.length > 100 ? `${rawVoteText.slice(0, 100)}...` : rawVoteText;
+		let finalVoteText = rawVoteText;
+		if (!/--~{3,}/.test(finalVoteText)) {
+			finalVoteText += '--~~~~';
+		}
+
 		let votedPageName = state.sectionTitles.find(x => x.data === id)?.label || `section ${id}`;
 		let indent = useBulleted ? '* ' : ': ';
 		let destPage = state.pageName;
@@ -150,9 +150,9 @@ export async function vote(voteIDs: number[], templates: string[], message: stri
 			destPage += '/提名区';
 		}
 
-		let text = addIndent(VTReason, indent);
+		let text = addIndent(finalVoteText, indent);
 		let summary = `/* ${votedPageName} */ `;
-		summary += templates.join('、');
+		summary += summaryVoteText || state.convByVar({ hant: '投票', hans: '投票' });
 		summary += ' ([[User:SuperGrey/gadgets/voter|Voter]])';
 
 		if (await voteAPI(state.pageName, destPage, id, text, summary)) return true;
