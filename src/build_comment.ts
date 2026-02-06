@@ -22,6 +22,9 @@ function isListLineNode(node: ListNode): node is ListLineNode {
 const SPACE_AFTER_INDENTATION_CHARS = true;
 const PARAGRAPH_TEMPLATES: string[] = [];
 const FILE_PREFIX_PATTERN = '(?:File|Image)';
+const MASK_PREFIX = '<<VOTER_MASK_';
+const MASK_SUFFIX = '_VOTER>>';
+const MASK_ANY_REGEXP = /<<VOTER_MASK_(\d+)(?:_\w+(?:_\d+)?)?_VOTER>>/g;
 const POPULAR_NOT_INLINE_ELEMENTS = [
 	'BLOCKQUOTE',
 	'CAPTION',
@@ -60,7 +63,11 @@ const POPULAR_NOT_INLINE_ELEMENTS = [
 
 const PNIE_PATTERN = `(?:${POPULAR_NOT_INLINE_ELEMENTS.join('|')})`;
 const FILE_PATTERN_END = `\\[\\[${FILE_PREFIX_PATTERN}:.+\\]\\]$`;
-const GALLERY_REGEXP = /^\x01\d+_gallery\x02$/m;
+const GALLERY_REGEXP = /^<<VOTER_MASK_\d+_gallery_VOTER>>$/m;
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 
 /**
@@ -96,13 +103,11 @@ class TextMasker {
 				textToMask = s;
 			}
 
-			const startMarker = type === 'table' ? '\x03' : '\x01';
-			const endMarker = type === 'table' ? '\x04' : '\x02';
 			const masked = textToMask || s;
 			const id = this.maskedTexts.push(masked);
 			const typeSuffix = type ? `_${type}` : '';
 
-			return `${preText || ''}${startMarker}${id}${typeSuffix}${endMarker}`;
+			return `${preText || ''}${MASK_PREFIX}${id}${typeSuffix}${MASK_SUFFIX}`;
 		});
 		return this;
 	}
@@ -115,8 +120,11 @@ class TextMasker {
 	 */
 	unmaskText(text: string, type?: string): string {
 		const regexp = type ?
-			new RegExp(`(?:\\x01|\\x03)(\\d+)(?:_${type}(?:_\\d+)?)?(?:\\x02|\\x04)`, 'g') :
-			/(?:\x01|\x03)(\d+)(?:_\w+)?(?:\x02|\x04)/g;
+			new RegExp(
+				`${escapeRegExp(MASK_PREFIX)}(\\d+)(?:_${escapeRegExp(type)}(?:_\\d+)?)?${escapeRegExp(MASK_SUFFIX)}`,
+				'g'
+			) :
+			MASK_ANY_REGEXP;
 
 		while (regexp.test(text)) {
 			text = text.replace(regexp, (_s, num) => this.maskedTexts[Number(num) - 1]);
@@ -178,7 +186,10 @@ class TextMasker {
 					(
 						'_' +
 						template.replace(
-							/\x01\d+_template_(\d+)\x02/g,
+							new RegExp(
+								`${escapeRegExp(MASK_PREFIX)}\\d+_template_(\\d+)${escapeRegExp(MASK_SUFFIX)}`,
+								'g'
+							),
 							(_m, n) => new Array(Number(n) + 1).join(' ')
 						).length
 					) :
@@ -186,11 +197,11 @@ class TextMasker {
 
 				this.text = (
 					this.text.substring(0, left) +
-					'\x01' +
+					MASK_PREFIX +
 					this.maskedTexts.push(template) +
 					'_template' +
 					lengthOrNot +
-					'\x02' +
+					MASK_SUFFIX +
 					this.text.slice(right)
 				);
 
@@ -421,7 +432,7 @@ function handleIndentedComment(
 	}
 
 	code = code.replace(
-		new RegExp(`(\\n+)([:*#;\\x03]|${FILE_PATTERN_END})`, 'gmi'),
+		new RegExp(`(\\n+)([:*#;]|${escapeRegExp(MASK_PREFIX)}\\d+_table${escapeRegExp(MASK_SUFFIX)}|${FILE_PATTERN_END})`, 'gmi'),
 		(_s, newlines: string, nextLine: string) => (
 			(newlines.length > 1 ? '\n\n\n' : '\n') +
 			prependIndentationToLine(restLinesIndentation, nextLine)
@@ -429,10 +440,10 @@ function handleIndentedComment(
 	);
 
 	code = code
-		.replace(/(^|[^\n])(\x01\d+_gallery\x02)/g, (_s, before: string, marker: string) => `${before}\n${marker}`)
-		.replace(/\x01\d+_gallery\x02(?=(?:$|[^\n]))/g, (marker) => `${marker}\n`);
+		.replace(/(^|[^\n])(<<VOTER_MASK_\d+_gallery_VOTER>>)/g, (_s, before: string, marker: string) => `${before}\n${marker}`)
+		.replace(/<<VOTER_MASK_\d+_gallery_VOTER>>(?=(?:$|[^\n]))/g, (marker) => `${marker}\n`);
 
-	if (restLinesIndentation.indexOf('#') !== -1 && code.indexOf('\x03') !== -1) {
+	if (restLinesIndentation.indexOf('#') !== -1 && /<<VOTER_MASK_\d+_table_VOTER>>/.test(code)) {
 		throw new Error('numberedList-table');
 	}
 
@@ -441,7 +452,7 @@ function handleIndentedComment(
 	}
 
 	code = code.replace(
-		/^((?:[:*#;\x03].+|\x01\d+_gallery\x02))(\n+)(?![:#])/mg,
+		/^((?:[:*#;].+|<<VOTER_MASK_\d+_(?:table|gallery)_VOTER>>))(\n+)(?![:#])/mg,
 		(_s, previousLine: string, newlines: string) => (
 			previousLine +
 			'\n' +
@@ -471,7 +482,7 @@ function handleIndentedComment(
  * @returns {string} 處理後的評論文本
  */
 function processNewlines(code: string, indentation: string, isInTemplate = false): string {
-	const entireLineRegexp = /^\x01\d+_(block|template)\x02 *$/;
+	const entireLineRegexp = /^<<VOTER_MASK_\d+_(block|template)(?:_\d+)?_VOTER>> *$/;
 	const entireLineFromStartRegexp = /^(=+).*\1[ \t]*$|^----/;
 	const fileRegexp = new RegExp(`^${FILE_PATTERN_END}`, 'i');
 
@@ -487,7 +498,7 @@ function processNewlines(code: string, indentation: string, isInTemplate = false
 		'(?!)';
 
 	const currentLineEndingRegexp = new RegExp(
-		`(?:<${PNIE_PATTERN}(?: [\\w ]+?=[^<>]+?| ?\\/?)>|<\\/${PNIE_PATTERN}>|\\x01\\d+_block\\x02|\\x04|<br[ \\n]*\\/?>|${paragraphTemplatePattern}${currentLineInTemplates}) *$`,
+		`(?:<${PNIE_PATTERN}(?: [\\w ]+?=[^<>]+?| ?\\/?)>|<\\/${PNIE_PATTERN}>|${escapeRegExp(MASK_PREFIX)}\\d+_block${escapeRegExp(MASK_SUFFIX)}|<br[ \\n]*\\/?>|${paragraphTemplatePattern}${currentLineInTemplates}) *$`,
 		'i'
 	);
 	const nextLineBeginningRegexp = new RegExp(
@@ -497,7 +508,10 @@ function processNewlines(code: string, indentation: string, isInTemplate = false
 
 	const newlinesRegexp = indentation ?
 		/^(.+)\n(?![:#])(?=(.*))/gm :
-		/^((?![:*#; ]).+)\n(?![\n:*#; \x03])(?=(.*))/gm;
+		new RegExp(
+			`^((?![:*#; ]).+)\\n(?![\\n:*#; ]|${escapeRegExp(MASK_PREFIX)}\\d+_table${escapeRegExp(MASK_SUFFIX)})(?=(.*))`,
+			'gm'
+		);
 
 	return code.replace(newlinesRegexp, (_s, currentLine: string, nextLine: string) => {
 		const lineBreakOrNot = (
