@@ -101,8 +101,9 @@ interface VoteDialogI18n {
 	cancel: string;
 	next: string;
 	previous: string;
-	selectEntries: string;
-	selectEntriesPlaceholder: string;
+	selectEntriesHeading: string;
+	selectEntriesHint: string;
+	insertTemplateHeading: string;
 	insertTemplateHint: string;
 	voteReasonPlaceholder: string;
 	useBulleted: string;
@@ -177,17 +178,18 @@ function createVoteDialog(sectionID: number): void {
 				previous: state.convByVar({ hant: "上一步", hans: "上一步" }),
 
 				// Step 0: Entry Selection
-				selectEntries: state.convByVar({ hant: "投票條目", hans: "投票条目" }),
-				selectEntriesPlaceholder: state.convByVar({ hant: "選擇要投票的條目", hans: "选择要投票的条目" }),
+				selectEntriesHeading: state.convByVar({ hant: "投票條目", hans: "投票条目" }),
+				selectEntriesHint: state.convByVar({ hant: "建議在閱讀條目後再投票。", hans: "建议在阅读条目后再投票。" }),
 
 				// Step 1: Per-entry Vote Content
+				insertTemplateHeading: state.convByVar({ hant: "投票理由", hans: "投票理由" }),
 				insertTemplateHint: state.convByVar({ hant: "模板按鈕會插入到游標所在位置。", hans: "模板按钮会插入到光标所在位置。" }),
 				voteReasonPlaceholder: state.convByVar({ hant: "輸入投票內容…", hans: "输入投票内容…" }),
 				useBulleted: state.convByVar({ hant: "使用 * 縮排", hans: "使用 * 缩进" }),
 
 				// Step 2: Preview
 				previewHeading: state.convByVar({ hant: "預覽投票內容", hans: "预览投票内容" }),
-				previewInfo: state.convByVar({ hant: "以下是將要提交的投票內容：", hans: "以下是将要提交的投票内容：" }),
+				previewInfo: state.convByVar({ hant: "以下是將要提交的投票內容。", hans: "以下是将要提交的投票内容。" }),
 
 				// Validation
 				noEntriesSelected: state.convByVar({ hant: "請選擇至少一個投票條目。", hans: "请选择至少一个投票条目。" }),
@@ -604,7 +606,8 @@ function createVoteDialog(sectionID: number): void {
                     </template>
 
                     <div v-if="currentStep === 0" class="voter-form-section">
-                        <label class="voter-form-label">{{ $options.i18n.selectEntries }}</label>
+                        <h3>{{ $options.i18n.selectEntriesHeading }}</h3>
+                        <div class="voter-template-hint">{{ $options.i18n.selectEntriesHint }}</div>
                         <div class="voter-checkbox-grid">
                             <cdx-checkbox
                                 v-for="option in entryOptions"
@@ -627,6 +630,7 @@ function createVoteDialog(sectionID: number): void {
                     </div>
 
                     <div v-else-if="currentStep === 1" class="voter-form-section">
+						<h3>{{ $options.i18n.insertTemplateHeading }}</h3>
                         <div class="voter-template-hint">{{ $options.i18n.insertTemplateHint }}</div>
 
                         <div
@@ -666,7 +670,7 @@ function createVoteDialog(sectionID: number): void {
 
                     <div v-else-if="currentStep === 2" class="voter-preview-section">
                         <h3>{{ $options.i18n.previewHeading }}</h3>
-                        <p>{{ $options.i18n.previewInfo }}</p>
+                        <div class="voter-template-hint">{{ $options.i18n.previewInfo }}</div>
 
                         <div
                             v-for="item in previewVoteItems"
