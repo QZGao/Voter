@@ -1,21 +1,21 @@
 {
-  "name": "voter",
-  "version": "4.2.2",
-  "private": true,
-  "description": "Vote for your favourite articles on Chinese Wikipedia.",
-  "type": "module",
-  "scripts": {
-    "build": "node build.mjs",
-    "watch": "node build.mjs --watch",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" --no-inline-config"
-  },
-  "devDependencies": {
-    "@types/jquery": "^3.5.33",
-    "@types/node": "^24.10.1",
-    "@typescript-eslint/eslint-plugin": "^8.13.0",
-    "@typescript-eslint/parser": "^8.13.0",
-    "esbuild": "^0.27.2",
-    "eslint": "^9.14.0",
-    "types-mediawiki": "^1.9.1"
-  }
+	"name": "voter",
+	"version": "4.2.2",
+	"private": true,
+	"description": "Vote for your favourite articles on Chinese Wikipedia.",
+	"type": "module",
+	"scripts": {
+		"build": "node build.mjs",
+		"watch": "node build.mjs --watch",
+		"lint": "eslint \"src/**/*.{ts,tsx}\" --no-inline-config"
+	},
+	"devDependencies": {
+		"@types/jquery": "^3.5.33",
+		"@types/node": "^24.10.1",
+		"@typescript-eslint/eslint-plugin": "^8.13.0",
+		"@typescript-eslint/parser": "^8.13.0",
+		"esbuild": "^0.27.2",
+		"eslint": "^9.14.0",
+		"types-mediawiki": "^2.0.0"
+	}
 }
