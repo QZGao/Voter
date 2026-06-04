@@ -1,6 +1,6 @@
 import { textMatchTitleVariants } from "./dom";
 import state from "./state";
-import type { UnknownApiParams } from "types-mediawiki/api_params";
+import type { ApiParams } from "types-mediawiki-api";
 
 interface XToolsAssessment {
 	value: string;
@@ -140,7 +140,7 @@ export async function voteAPI(tracePage: string, destPage: string, sectionID: nu
 	}
 
 	const targetSection = innerHeadings ? sectionID + 1 : sectionID;
-	const editParams: UnknownApiParams = {
+	const editParams: ApiParams = {
 		action: 'edit',
 		title: destPage,
 		section: targetSection,
