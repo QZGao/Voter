@@ -52,33 +52,33 @@ let codeMirrorRequirePromise: Promise<CodeMirrorRequire> | null = null;
  * @returns Promise resolving to Vue and Codex module objects.
  */
 function loadCodex(): Promise<{ Vue: unknown; Codex: unknown }> {
-    return new Promise((resolve, reject) => {
-        mw.loader
-            .using('@wikimedia/codex')
-            .then((requireFn: (name: string) => unknown) => {
-                resolve({
-                    Vue: requireFn ? requireFn('vue') : null,
-                    Codex: requireFn ? requireFn('@wikimedia/codex') : null
-                });
-            })
-            .catch((err: unknown) => {
-                const reason =
-                    err instanceof Error
-                        ? err
-                        : new Error(
-                            typeof err === 'string'
-                                ? err
-                                : (() => {
-                                    try {
-                                        return JSON.stringify(err);
-                                    } catch {
-                                        return 'Unknown error';
-                                    }
-                                })()
-                        );
-                reject(reason);
-            });
-    });
+	return new Promise((resolve, reject) => {
+		mw.loader
+			.using('@wikimedia/codex')
+			.then((requireFn: (name: string) => unknown) => {
+				resolve({
+					Vue: requireFn ? requireFn('vue') : null,
+					Codex: requireFn ? requireFn('@wikimedia/codex') : null
+				});
+			})
+			.catch((err: unknown) => {
+				const reason =
+					err instanceof Error
+						? err
+						: new Error(
+							typeof err === 'string'
+								? err
+								: (() => {
+									try {
+										return JSON.stringify(err);
+									} catch {
+										return 'Unknown error';
+									}
+								})()
+						);
+				reject(reason);
+			});
+	});
 }
 
 /**
@@ -87,8 +87,8 @@ function loadCodex(): Promise<{ Vue: unknown; Codex: unknown }> {
  * @returns Promise resolving to Vue and Codex module objects.
  */
 export async function loadCodexAndVue(): Promise<{ Vue: VueModule; Codex: CodexModule }> {
-    const loaded = await loadCodex();
-    return loaded as { Vue: VueModule; Codex: CodexModule };
+	const loaded = await loadCodex();
+	return loaded as { Vue: VueModule; Codex: CodexModule };
 }
 
 /**
@@ -98,13 +98,13 @@ export async function loadCodexAndVue(): Promise<{ Vue: VueModule; Codex: CodexM
  * @returns The mount point element.
  */
 export function ensureMount(id = MOUNT_ID): HTMLElement {
-    let mount = document.getElementById(id);
-    if (!mount) {
-        mount = document.createElement('div');
-        mount.id = id;
-        document.body.appendChild(mount);
-    }
-    return mount;
+	let mount = document.getElementById(id);
+	if (!mount) {
+		mount = document.createElement('div');
+		mount.id = id;
+		document.body.appendChild(mount);
+	}
+	return mount;
 }
 
 /**
@@ -113,20 +113,20 @@ export function ensureMount(id = MOUNT_ID): HTMLElement {
  * @param {string} cssText CSS text content to inject.
  */
 export function ensureStyleElement(id: string, cssText: string): void {
-    if (document.getElementById(id)) return;
-    try {
-        const styleEl = document.createElement('style');
-        styleEl.id = id;
-        styleEl.appendChild(document.createTextNode(cssText));
-        document.head.appendChild(styleEl);
-    } catch {
-        const div = document.createElement('div');
-        div.innerHTML = `<style id="${id}">${cssText}</style>`;
-        const styleEl = div.firstChild as HTMLElement | null;
-        if (styleEl) {
-            document.head.appendChild(styleEl);
-        }
-    }
+	if (document.getElementById(id)) return;
+	try {
+		const styleEl = document.createElement('style');
+		styleEl.id = id;
+		styleEl.appendChild(document.createTextNode(cssText));
+		document.head.appendChild(styleEl);
+	} catch {
+		const div = document.createElement('div');
+		div.innerHTML = `<style id="${id}">${cssText}</style>`;
+		const styleEl = div.firstChild as HTMLElement | null;
+		if (styleEl) {
+			document.head.appendChild(styleEl);
+		}
+	}
 }
 
 /**
@@ -135,7 +135,7 @@ export function ensureStyleElement(id: string, cssText: string): void {
  * @returns The mount point HTMLElement.
  */
 export function createDialogMountIfNeeded(): HTMLElement {
-    return ensureMount(MOUNT_ID);
+	return ensureMount(MOUNT_ID);
 }
 
 /**
@@ -145,10 +145,10 @@ export function createDialogMountIfNeeded(): HTMLElement {
  * @returns The mounted Vue app.
  */
 export function mountApp(app: VueApp): VueApp {
-    createDialogMountIfNeeded();
-    mountedApp = app;
-    mountedRoot = mountedApp.mount(`#${MOUNT_ID}`);
-    return mountedApp;
+	createDialogMountIfNeeded();
+	mountedApp = app;
+	mountedRoot = mountedApp.mount(`#${MOUNT_ID}`);
+	return mountedApp;
 }
 
 /**
@@ -156,7 +156,7 @@ export function mountApp(app: VueApp): VueApp {
  * @returns The mounted app, or null if none is mounted.
  */
 export function getMountedApp(): VueApp | null {
-    return mountedApp;
+	return mountedApp;
 }
 
 /**
@@ -164,7 +164,7 @@ export function getMountedApp(): VueApp | null {
  * @returns The root component instance, or null if none is mounted.
  */
 export function getMountedRoot(): unknown {
-    return mountedRoot;
+	return mountedRoot;
 }
 
 /**
@@ -172,12 +172,12 @@ export function getMountedRoot(): unknown {
  * Should be called when the dialog is permanently closed.
  */
 export function removeDialogMount(): void {
-    const mount = document.getElementById(MOUNT_ID);
-    if (mount) {
-        mount.remove();
-    }
-    mountedApp = null;
-    mountedRoot = null;
+	const mount = document.getElementById(MOUNT_ID);
+	if (mount) {
+		mount.remove();
+	}
+	mountedApp = null;
+	mountedRoot = null;
 }
 
 /**
@@ -187,21 +187,21 @@ export function removeDialogMount(): void {
  * @param {CodexModule} Codex The Codex module containing component definitions.
  */
 export function registerCodexComponents(app: VueApp, Codex: CodexModule): void {
-    if (!app || !app.component || !Codex) return;
-    try {
-        if (Codex.CdxDialog) app.component('cdx-dialog', Codex.CdxDialog);
-        if (Codex.CdxButton) app.component('cdx-button', Codex.CdxButton);
-        if (Codex.CdxSelect) app.component('cdx-select', Codex.CdxSelect);
-        if (Codex.CdxTextInput) app.component('cdx-text-input', Codex.CdxTextInput);
-        if (Codex.CdxTextArea) app.component('cdx-text-area', Codex.CdxTextArea);
-        if (Codex.CdxCheckbox) app.component('cdx-checkbox', Codex.CdxCheckbox);
-        if (Codex.CdxField) app.component('cdx-field', Codex.CdxField);
-        if (Codex.CdxMultiselectLookup) app.component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup);
-        if (Codex.CdxChipInput) app.component('cdx-chip-input', Codex.CdxChipInput);
-        if (Codex.CdxToggleSwitch) app.component('cdx-toggle-switch', Codex.CdxToggleSwitch);
-    } catch {
-        // best effort; ignore registration errors
-    }
+	if (!app || !app.component || !Codex) return;
+	try {
+		if (Codex.CdxDialog) app.component('cdx-dialog', Codex.CdxDialog);
+		if (Codex.CdxButton) app.component('cdx-button', Codex.CdxButton);
+		if (Codex.CdxSelect) app.component('cdx-select', Codex.CdxSelect);
+		if (Codex.CdxTextInput) app.component('cdx-text-input', Codex.CdxTextInput);
+		if (Codex.CdxTextArea) app.component('cdx-text-area', Codex.CdxTextArea);
+		if (Codex.CdxCheckbox) app.component('cdx-checkbox', Codex.CdxCheckbox);
+		if (Codex.CdxField) app.component('cdx-field', Codex.CdxField);
+		if (Codex.CdxMultiselectLookup) app.component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup);
+		if (Codex.CdxChipInput) app.component('cdx-chip-input', Codex.CdxChipInput);
+		if (Codex.CdxToggleSwitch) app.component('cdx-toggle-switch', Codex.CdxToggleSwitch);
+	} catch {
+		// best effort; ignore registration errors
+	}
 }
 
 /**
@@ -215,7 +215,7 @@ export function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
 
 	codeMirrorRequirePromise = new Promise<CodeMirrorRequire>((resolve, reject) => {
 		mw.loader
-			.using(["ext.CodeMirror.v6", "ext.CodeMirror.v6.mode.mediawiki"])
+			.using(["ext.CodeMirror", "ext.CodeMirror.mode.mediawiki"])
 			.then(
 				(requireFn: unknown) => resolve(requireFn as CodeMirrorRequire),
 				(error: unknown) => {
@@ -239,11 +239,11 @@ export async function createCodeMirrorBinding(
 	onTextChange: () => void
 ): Promise<CodeMirrorBinding | null> {
 	const requireFn = await loadCodeMirrorModules();
-	const CodeMirrorCtor = requireFn("ext.CodeMirror.v6") as new (
+	const CodeMirrorCtor = requireFn("ext.CodeMirror") as new (
 		textareaEl: HTMLTextAreaElement,
 		modeExt: unknown
 	) => CodeMirrorLike;
-	const modeModule = requireFn("ext.CodeMirror.v6.mode.mediawiki") as { mediawiki?: () => unknown };
+	const modeModule = requireFn("ext.CodeMirror.mode.mediawiki") as { mediawiki?: () => unknown };
 	const mode = typeof modeModule.mediawiki === "function" ? modeModule.mediawiki() : undefined;
 	if (!CodeMirrorCtor || !mode) return null;
 
