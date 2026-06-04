@@ -1,6 +1,6 @@
 {
 	"name": "voter",
-	"version": "4.2.2",
+	"version": "4.3.0",
 	"private": true,
 	"description": "Vote for your favourite articles on Chinese Wikipedia.",
 	"type": "module",
