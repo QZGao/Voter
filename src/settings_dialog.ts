@@ -125,16 +125,16 @@ function createSettingsDialog(): void {
 				save: state.convByVar({ hant: "儲存", hans: "保存" }),
 				saving: state.convByVar({ hant: "儲存中…", hans: "保存中…" }),
 				cancel: state.convByVar({ hant: "取消", hans: "取消" }),
-				invalidVoteTemplatesHeading: state.convByVar({ hant: "無效票模板", hans: "无效票模板" }),
+				invalidVoteTemplatesHeading: state.convByVar({ hant: "自訂無效票模板", hans: "自定义无效票模板" }),
 				invalidVoteTemplatesHint: state.convByVar({
 					hant: "輸入模板名稱即可，不需要包含 {{ }}。",
 					hans: "输入模板名称即可，不需要包含 {{ }}。"
 				}),
 				invalidVoteTemplatesPlaceholder: state.convByVar({ hant: "新增模板名稱", hans: "新增模板名称" }),
-				defaultVoteMessagesHeading: state.convByVar({ hant: "預設投票訊息", hans: "默认投票信息" }),
+				defaultVoteMessagesHeading: state.convByVar({ hant: "自订預設投票理由", hans: "自定义默认投票理由" }),
 				defaultVoteMessagesHint: state.convByVar({
-					hant: "勾選頁面後可自訂該頁面的預設投票內容。",
-					hans: "勾选页面后可自定义该页面的默认投票内容。"
+					hant: "勾選頁面後可自訂該評選的預設投票理由。",
+					hans: "勾选页面后可自定义该评选的默认投票理由。"
 				}),
 				largerCodeMirrorHeight: state.convByVar({ hant: "加大 CodeMirror 高度", hans: "加大 CodeMirror 高度" }),
 				largerCodeMirrorHeightDescription: state.convByVar({
