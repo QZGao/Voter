@@ -7,10 +7,12 @@
 			"DOM"
 		],
 		"esModuleInterop": true,
+		"moduleResolution": "bundler",
 		"skipLibCheck": true,
 		"strict": true,
 		"forceConsistentCasingInFileNames": true,
 		"types": [
+			"jquery",
 			"@types/node",
 			"types-mediawiki"
 		],

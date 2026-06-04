@@ -6,40 +6,23 @@ import {
 	mountApp,
 	removeDialogMount,
 	registerCodexComponents,
-	getMountedApp
+	getMountedApp,
+	createCodeMirrorBinding,
+	destroyCodeMirrorBinding,
+	getCodeMirrorBindingText,
+	insertTextIntoCodeMirrorBinding
 } from "./dialog";
-import type { VueModule, CodexModule } from "./dialog";
+import type { VueModule, CodexModule, CodeMirrorBinding } from "./dialog";
 import { vote } from "./dom";
+import { openSettingsDialog as showSettingsDialog } from "./settings_dialog";
 
 type EntryOption = { value: number; label: string };
 type TemplateOption = { value: string; label: string };
 type EntryVoteItem = { id: number; name: string };
 type PreviewVoteItem = { id: number; name: string; text: string };
-type CodeMirrorRequire = (moduleName: string) => unknown;
-type CodeMirrorLike = {
-	initialize: () => void;
-	view?: {
-		state?: {
-			doc?: { toString: () => string };
-			selection?: { main?: { from: number; to: number } };
-		};
-		dispatch?: (spec: {
-			changes?: { from: number; to: number; insert: string };
-			selection?: { anchor: number };
-		}) => void;
-		focus?: () => void;
-	};
-	destroy?: () => void;
-};
-type CodeMirrorBinding = {
-	cm: CodeMirrorLike;
-	textarea: HTMLTextAreaElement;
-	onInput: () => void;
-};
 
 const entryInfoPromiseCache = new Map<string, Promise<string>>();
 const voteMessageCache = new Map<string, string>();
-let codeMirrorRequirePromise: Promise<CodeMirrorRequire> | null = null;
 
 /**
  * 根據是否使用項目符號與頁面類型，取得投票內容縮排字串。
@@ -82,30 +65,6 @@ function getCachedEntryInfo(entryName: string): Promise<string> {
 	});
 	entryInfoPromiseCache.set(entryName, pending);
 	return pending;
-}
-
-/**
- * 加載CodeMirror模塊，使用緩存以避免重複加載。
- * @return {Promise<CodeMirrorRequire>} 加載完成後的CodeMirror require函數
- */
-function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
-	if (codeMirrorRequirePromise) {
-		return codeMirrorRequirePromise;
-	}
-
-	codeMirrorRequirePromise = new Promise<CodeMirrorRequire>((resolve, reject) => {
-		mw.loader
-			.using(["ext.CodeMirror.v6", "ext.CodeMirror.v6.mode.mediawiki"])
-			.then(
-				(requireFn: unknown) => resolve(requireFn as CodeMirrorRequire),
-				(error: unknown) => {
-					const reason = error instanceof Error ? error : new Error(String(error));
-					reject(reason);
-				}
-			);
-	});
-
-	return codeMirrorRequirePromise;
 }
 
 /**
@@ -152,6 +111,7 @@ interface VoteDialogI18n {
 	cancel: string;
 	next: string;
 	previous: string;
+	settings: string;
 	selectEntriesHeading: string;
 	selectEntriesHint: string;
 	insertTemplateHeading: string;
@@ -176,6 +136,8 @@ interface VoteDialogData {
 	voteMessages: Record<number, string>;
 	codeMirrorByEntryId: Record<number, CodeMirrorBinding>;
 	useBulleted: boolean;
+	largerCodeMirrorHeight: boolean;
+	settingsIconUrl: string;
 }
 
 interface VoteDialogComputed {
@@ -203,6 +165,7 @@ type VoteDialogInstance = VoteDialogData & VoteDialogComputed & {
 	syncCodeMirrorInstances: () => void;
 	initCodeMirrorForEntry: (entryId: number) => Promise<void>;
 	insertTemplate: (template: string, entryId: number) => void;
+	openSettingsDialogFromVote: () => void;
 	onPrimaryAction: () => void;
 	onDefaultAction: () => void;
 	onUpdateOpen: (newValue: boolean) => void;
@@ -227,6 +190,7 @@ function createVoteDialog(sectionID: number): void {
 				cancel: state.convByVar({ hant: "取消", hans: "取消" }),
 				next: state.convByVar({ hant: "下一步", hans: "下一步" }),
 				previous: state.convByVar({ hant: "上一步", hans: "上一步" }),
+				settings: state.convByVar({ hant: "設定", hans: "设置" }),
 
 				// Step 0: Entry Selection
 				selectEntriesHeading: state.convByVar({ hant: "投票條目", hans: "投票条目" }),
@@ -247,7 +211,7 @@ function createVoteDialog(sectionID: number): void {
 				noVoteContent: state.convByVar({ hant: "請輸入投票內容，或先插入模板。", hans: "请输入投票内容，或先插入模板。" })
 			},
 			data() {
-				const defaultVoteMessage = state.validVoteTemplates.length > 0 ? `{{${state.validVoteTemplates[0].data}}}。` : "";
+				const defaultVoteMessage = state.getDefaultVoteMessage();
 				const initialVoteMessage = getCachedVoteMessageById(sectionID) ?? defaultVoteMessage;
 				return {
 					open: true,
@@ -266,7 +230,9 @@ function createVoteDialog(sectionID: number): void {
 						[sectionID]: initialVoteMessage
 					},
 					codeMirrorByEntryId: {},
-					useBulleted: true
+					useBulleted: true,
+					largerCodeMirrorHeight: state.userConfig.largerCodeMirrorHeight,
+					settingsIconUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Codex_icon_settings.svg/20px-Codex_icon_settings.svg.png"
 				};
 			},
 			computed: {
@@ -348,7 +314,7 @@ function createVoteDialog(sectionID: number): void {
 				},
 
 				getDefaultVoteMessage(this: VoteDialogInstance): string {
-					return this.validTemplateOptions.length > 0 ? `{{${this.validTemplateOptions[0].value}}}。` : "";
+					return state.getDefaultVoteMessage();
 				},
 
 				syncVoteMessages(this: VoteDialogInstance) {
@@ -368,9 +334,8 @@ function createVoteDialog(sectionID: number): void {
 					const nextMessages: Record<number, string> = { ...this.voteMessages };
 					for (const id of this.selectedEntries) {
 						const binding = this.codeMirrorByEntryId[id];
-						const codeMirrorText = binding?.cm?.view?.state?.doc?.toString();
-						if (typeof codeMirrorText === "string") {
-							nextMessages[id] = codeMirrorText;
+						if (binding) {
+							nextMessages[id] = getCodeMirrorBindingText(binding);
 							continue;
 						}
 
@@ -439,11 +404,8 @@ function createVoteDialog(sectionID: number): void {
 				destroyCodeMirrorForEntry(this: VoteDialogInstance, entryId: number) {
 					const binding = this.codeMirrorByEntryId[entryId];
 					if (!binding) return;
-					binding.textarea.removeEventListener("input", binding.onInput);
 					try {
-						if (typeof binding.cm.destroy === "function") {
-							binding.cm.destroy();
-						}
+						destroyCodeMirrorBinding(binding);
 					} catch (error: unknown) {
 						console.warn("[Voter] Failed to destroy CodeMirror:", error);
 					}
@@ -465,26 +427,17 @@ function createVoteDialog(sectionID: number): void {
 					if (!textarea) return;
 
 					try {
-						const requireFn = await loadCodeMirrorModules();
-						const CodeMirrorCtor = requireFn("ext.CodeMirror.v6") as new (textareaEl: HTMLTextAreaElement, modeExt: unknown) => CodeMirrorLike;
-						const modeModule = requireFn("ext.CodeMirror.v6.mode.mediawiki") as { mediawiki?: () => unknown };
-						const mode = typeof modeModule.mediawiki === "function" ? modeModule.mediawiki() : undefined;
-						if (!CodeMirrorCtor || !mode) return;
-
-						const cm = new CodeMirrorCtor(textarea, mode);
-						cm.initialize();
-
-						const onInput = () => {
+						const binding = await createCodeMirrorBinding(textarea, () => {
 							this.voteMessages = {
 								...this.voteMessages,
 								[entryId]: textarea.value
 							};
-						};
-						textarea.addEventListener("input", onInput);
+						});
+						if (!binding) return;
 
 						this.codeMirrorByEntryId = {
 							...this.codeMirrorByEntryId,
-							[entryId]: { cm, textarea, onInput }
+							[entryId]: binding
 						};
 					} catch (error: unknown) {
 						console.warn("[Voter] CodeMirror initialization failed, fallback to textarea.", error);
@@ -508,26 +461,13 @@ function createVoteDialog(sectionID: number): void {
 				insertTemplate(this: VoteDialogInstance, template: string, entryId: number) {
 					const templateText = `{{${template}}}`;
 					const binding = this.codeMirrorByEntryId[entryId];
-					const view = binding?.cm?.view;
-					const selection = view?.state?.selection?.main;
-					if (view && selection && typeof view.dispatch === "function") {
-						view.dispatch({
-							changes: {
-								from: selection.from,
-								to: selection.to,
-								insert: templateText
-							},
-							selection: { anchor: selection.from + templateText.length }
-						});
-						const updated = view.state?.doc?.toString() || "";
+					const updated = binding ? insertTextIntoCodeMirrorBinding(binding, templateText) : null;
+					if (updated !== null) {
 						this.voteMessages = {
 							...this.voteMessages,
 							[entryId]: updated
 						};
 						setCachedVoteMessageById(entryId, updated);
-						if (typeof view.focus === "function") {
-							view.focus();
-						}
 						return;
 					}
 
@@ -556,6 +496,15 @@ function createVoteDialog(sectionID: number): void {
 						const nextCursor = start + templateText.length;
 						focusedTextArea.focus();
 						focusedTextArea.setSelectionRange(nextCursor, nextCursor);
+					}, 0);
+				},
+
+				openSettingsDialogFromVote(this: VoteDialogInstance) {
+					this.syncVoteMessagesFromTextareas();
+					this.destroyAllCodeMirror();
+					this.open = false;
+					setTimeout(() => {
+						showSettingsDialog();
 					}, 0);
 				},
 
@@ -643,10 +592,24 @@ function createVoteDialog(sectionID: number): void {
                     @default="onDefaultAction"
                     @update:open="onUpdateOpen"
                     class="voter-dialog voter-multistep-dialog"
+                    :class="{ 'voter-dialog--large-codemirror': largerCodeMirrorHeight }"
                 >
                     <template #header>
                         <div class="voter-multistep-dialog__header-top">
                             <h2>{{ $options.i18n.dialogTitle }}</h2>
+                            <cdx-button
+                                class="voter-settings-icon-button"
+                                weight="quiet"
+                                :aria-label="$options.i18n.settings"
+                                :title="$options.i18n.settings"
+                                @click="openSettingsDialogFromVote"
+                            >
+                                <img
+                                    class="voter-settings-icon-button__icon"
+                                    :src="settingsIconUrl"
+                                    alt=""
+                                >
+                            </cdx-button>
                         </div>
 
                         <div class="voter-multistep-dialog__stepper">

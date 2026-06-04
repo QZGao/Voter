@@ -16,11 +16,36 @@ export type CodexModule = Partial<{
 	CdxField: unknown;
 	CdxMultiselectLookup: unknown;
 	CdxTextArea: unknown;
+	CdxChipInput: unknown;
+	CdxToggleSwitch: unknown;
 }>;
+
+export type CodeMirrorRequire = (moduleName: string) => unknown;
+export type CodeMirrorLike = {
+	initialize: () => void;
+	view?: {
+		state?: {
+			doc?: { toString: () => string };
+			selection?: { main?: { from: number; to: number } };
+		};
+		dispatch?: (spec: {
+			changes?: { from: number; to: number; insert: string };
+			selection?: { anchor: number };
+		}) => void;
+		focus?: () => void;
+	};
+	destroy?: () => void;
+};
+export type CodeMirrorBinding = {
+	cm: CodeMirrorLike;
+	textarea: HTMLTextAreaElement;
+	onInput: () => void;
+};
 
 let mountedApp: VueApp | null = null;
 let mountedRoot: unknown = null;
 const MOUNT_ID = 'voter-dialog-mount';
+let codeMirrorRequirePromise: Promise<CodeMirrorRequire> | null = null;
 
 /**
  * Load Codex and Vue from ResourceLoader. Mirrors ReviewTool pattern for future UI work.
@@ -172,7 +197,111 @@ export function registerCodexComponents(app: VueApp, Codex: CodexModule): void {
         if (Codex.CdxCheckbox) app.component('cdx-checkbox', Codex.CdxCheckbox);
         if (Codex.CdxField) app.component('cdx-field', Codex.CdxField);
         if (Codex.CdxMultiselectLookup) app.component('cdx-multiselect-lookup', Codex.CdxMultiselectLookup);
+        if (Codex.CdxChipInput) app.component('cdx-chip-input', Codex.CdxChipInput);
+        if (Codex.CdxToggleSwitch) app.component('cdx-toggle-switch', Codex.CdxToggleSwitch);
     } catch {
         // best effort; ignore registration errors
     }
+}
+
+/**
+ * 加載CodeMirror模塊，使用緩存以避免重複加載。
+ * @return {Promise<CodeMirrorRequire>} 加載完成後的CodeMirror require函數
+ */
+export function loadCodeMirrorModules(): Promise<CodeMirrorRequire> {
+	if (codeMirrorRequirePromise) {
+		return codeMirrorRequirePromise;
+	}
+
+	codeMirrorRequirePromise = new Promise<CodeMirrorRequire>((resolve, reject) => {
+		mw.loader
+			.using(["ext.CodeMirror.v6", "ext.CodeMirror.v6.mode.mediawiki"])
+			.then(
+				(requireFn: unknown) => resolve(requireFn as CodeMirrorRequire),
+				(error: unknown) => {
+					const reason = error instanceof Error ? error : new Error(String(error));
+					reject(reason);
+				}
+			);
+	});
+
+	return codeMirrorRequirePromise;
+}
+
+/**
+ * 在 textarea 上初始化 MediaWiki CodeMirror。
+ * @param {HTMLTextAreaElement} textarea 要增強的 textarea
+ * @param {() => void} onTextChange CodeMirror 同步 textarea 後的輸入回調
+ * @returns {Promise<CodeMirrorBinding | null>} CodeMirror 綁定，無法初始化時為 null
+ */
+export async function createCodeMirrorBinding(
+	textarea: HTMLTextAreaElement,
+	onTextChange: () => void
+): Promise<CodeMirrorBinding | null> {
+	const requireFn = await loadCodeMirrorModules();
+	const CodeMirrorCtor = requireFn("ext.CodeMirror.v6") as new (
+		textareaEl: HTMLTextAreaElement,
+		modeExt: unknown
+	) => CodeMirrorLike;
+	const modeModule = requireFn("ext.CodeMirror.v6.mode.mediawiki") as { mediawiki?: () => unknown };
+	const mode = typeof modeModule.mediawiki === "function" ? modeModule.mediawiki() : undefined;
+	if (!CodeMirrorCtor || !mode) return null;
+
+	const cm = new CodeMirrorCtor(textarea, mode);
+	cm.initialize();
+
+	const onInput = () => {
+		onTextChange();
+	};
+	textarea.addEventListener("input", onInput);
+
+	return { cm, textarea, onInput };
+}
+
+/**
+ * 取得 CodeMirror 或原 textarea 中的最新文字。
+ * @param {CodeMirrorBinding} binding CodeMirror 綁定
+ * @returns {string} 最新文字
+ */
+export function getCodeMirrorBindingText(binding: CodeMirrorBinding): string {
+	return binding.cm.view?.state?.doc?.toString() ?? binding.textarea.value;
+}
+
+/**
+ * 在 CodeMirror 目前游標位置插入文字。
+ * @param {CodeMirrorBinding} binding CodeMirror 綁定
+ * @param {string} text 要插入的文字
+ * @returns {string | null} 插入後文字；若無法透過 CodeMirror 插入則為 null
+ */
+export function insertTextIntoCodeMirrorBinding(binding: CodeMirrorBinding, text: string): string | null {
+	const view = binding.cm.view;
+	const selection = view?.state?.selection?.main;
+	if (!view || !selection || typeof view.dispatch !== "function") {
+		return null;
+	}
+
+	view.dispatch({
+		changes: {
+			from: selection.from,
+			to: selection.to,
+			insert: text
+		},
+		selection: { anchor: selection.from + text.length }
+	});
+	const updated = view.state?.doc?.toString() || "";
+	if (typeof view.focus === "function") {
+		view.focus();
+	}
+	return updated;
+}
+
+/**
+ * 銷毀 CodeMirror 綁定。
+ * @param {CodeMirrorBinding} binding CodeMirror 綁定
+ */
+export function destroyCodeMirrorBinding(binding: CodeMirrorBinding): void {
+	binding.textarea.removeEventListener("input", binding.onInput);
+	if (typeof binding.cm.destroy === "function") {
+		binding.cm.destroy();
+	}
 }

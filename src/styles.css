@@ -18,6 +18,16 @@
     font-weight: 600;
 }
 
+.voter-settings-icon-button {
+    min-width: 32px;
+}
+
+.voter-settings-icon-button__icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
 .voter-multistep-dialog__stepper {
     display: flex;
     align-items: center;
@@ -158,6 +168,40 @@
     white-space: pre-wrap;
     word-break: break-word;
     margin: 0;
+}
+
+/* Settings Dialog */
+.voter-settings-section {
+    padding: 16px 0;
+    border-bottom: 1px solid #eaecf0;
+}
+
+.voter-settings-section:first-child {
+    padding-top: 0;
+}
+
+.voter-settings-section--last {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.voter-settings-default-message-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.voter-settings-default-message__editor {
+    margin-top: 8px;
+    margin-left: 28px;
+}
+
+.voter-dialog--large-codemirror .cm-editor {
+    min-height: 220px;
+}
+
+.voter-dialog--large-codemirror .cm-scroller {
+    min-height: 220px;
 }
 
 /* Dialog Footer - override Codex defaults */
